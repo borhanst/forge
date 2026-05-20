@@ -1,0 +1,282 @@
+import { useEffect, useState } from 'react'
+import { forge, forgeEvents } from '../lib/tauri'
+import { useForgeStore } from '../store'
+import type { Workspace } from '../lib/tauri'
+import AddRepoModal from './AddRepoModal'
+
+export default function Sidebar() {
+  const {
+    repositories, workspaces,
+    setRepositories, setWorkspaces,
+    activeWorkspaceId, setActiveWorkspace,
+    activeRepoId, setActiveRepo,
+  } = useForgeStore()
+
+  const [showAddRepo, setShowAddRepo]     = useState(false)
+  const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set())
+
+  const loadData = async () => {
+    try {
+      const [repos, wss] = await Promise.all([
+        forge.listRepositories(),
+        forge.listWorkspaces(),
+      ])
+      setRepositories(repos)
+      setWorkspaces(wss)
+    } catch (e) {
+      console.error('[Sidebar] Failed to load data:', e)
+    }
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  useEffect(() => {
+    const unlisten = forgeEvents.onWorkspaceCreated(() => {
+      loadData()
+    })
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [])
+
+  useEffect(() => {
+    const unlisten = forgeEvents.onWorkspaceUpdated(() => {
+      loadData()
+    })
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [])
+
+  const toggleRepo = (id: string) => {
+    setExpandedRepos(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+    setActiveRepo(id)
+  }
+
+  const handleCreateWorkspace = async (repoId: string, provider: string) => {
+    try {
+      await forge.createWorkspace(repoId, provider)
+    } catch (e) {
+      console.error('Failed to create workspace:', e)
+      alert(`Failed to create workspace: ${e}`)
+      return
+    }
+    await loadData()
+  }
+
+  const handleArchive = async (wsId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await forge.archiveWorkspace(wsId)
+    } catch (err) {
+      console.error('Failed to archive workspace:', err)
+      return
+    }
+    await loadData()
+  }
+
+  return (
+    <aside style={{
+      width: 240, minWidth: 200, background: '#111318',
+      borderRight: '1px solid #23263a', display: 'flex',
+      flexDirection: 'column', height: '100vh', overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '16px 14px 10px', display: 'flex',
+        alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: '1px solid #23263a',
+      }}>
+        <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 18, color: '#fff' }}>
+          Forge
+        </span>
+        <button
+          onClick={() => setShowAddRepo(true)}
+          title="Add Repository"
+          style={{
+            background: '#2563eb', border: 'none', color: '#fff',
+            borderRadius: 6, width: 26, height: 26, cursor: 'pointer',
+            fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >+</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        {repositories.length === 0 && (
+          <div style={{ color: '#4b5563', fontSize: 13, padding: '24px 16px', textAlign: 'center' }}>
+            No repositories yet.<br />
+            <span
+              style={{ color: '#2563eb', cursor: 'pointer' }}
+              onClick={() => setShowAddRepo(true)}
+            >Add one &rarr;</span>
+          </div>
+        )}
+
+        {repositories.map(repo => {
+          const repoWorkspaces = workspaces.filter(w => w.repo_id === repo.id)
+          const expanded       = expandedRepos.has(repo.id)
+
+          return (
+            <div key={repo.id}>
+              <div
+                onClick={() => toggleRepo(repo.id)}
+                style={{
+                  padding: '7px 14px', cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', gap: 8,
+                  background: activeRepoId === repo.id ? '#1e2235' : 'transparent',
+                  color: '#d1d5db',
+                  fontSize: 13, fontWeight: 500,
+                }}
+              >
+                <span style={{ fontSize: 10, color: '#6b7280' }}>{expanded ? '\u25BC' : '\u25B6'}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {repo.name}
+                </span>
+                <span style={{
+                  fontSize: 11, background: '#1e2235', color: '#6b7280',
+                  borderRadius: 10, padding: '1px 6px',
+                }}>
+                  {repoWorkspaces.length}
+                </span>
+              </div>
+
+              {expanded && (
+                <div>
+                  {repoWorkspaces.map(ws => (
+                    <WorkspaceItem
+                      key={ws.id}
+                      workspace={ws}
+                      active={activeWorkspaceId === ws.id}
+                      onSelect={() => { setActiveWorkspace(ws.id); setActiveRepo(repo.id) }}
+                      onArchive={(e) => handleArchive(ws.id, e)}
+                    />
+                  ))}
+
+                  <NewWorkspaceRow
+                    repoId={repo.id}
+                    onCreate={handleCreateWorkspace}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {showAddRepo && (
+        <AddRepoModal
+          onClose={() => setShowAddRepo(false)}
+          onAdded={loadData}
+        />
+      )}
+    </aside>
+  )
+}
+
+function WorkspaceItem({
+  workspace, active, onSelect, onArchive,
+}: {
+  workspace: Workspace
+  active: boolean
+  onSelect: () => void
+  onArchive: (e: React.MouseEvent) => void
+}) {
+  const STATUS_COLOR: Record<string, string> = {
+    idle: '#6b7280', running: '#f59e0b', done: '#10b981', error: '#ef4444',
+  }
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        padding: '6px 14px 6px 30px', cursor: 'pointer', display: 'flex',
+        alignItems: 'center', gap: 8,
+        background: active ? '#1e3a5f' : 'transparent',
+        color: active ? '#93c5fd' : '#9ca3af',
+        fontSize: 12,
+      }}
+    >
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: STATUS_COLOR[workspace.status] ?? '#6b7280',
+        flexShrink: 0,
+      }} />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {workspace.city_name}
+      </span>
+      <span style={{ fontSize: 10, color: '#4b5563', flexShrink: 0 }}>
+        {workspace.provider}
+      </span>
+      <button
+        onClick={onArchive}
+        title="Archive"
+        style={{
+          background: 'transparent', border: 'none', color: '#4b5563',
+          cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1,
+        }}
+      >⋯</button>
+    </div>
+  )
+}
+
+function NewWorkspaceRow({
+  repoId, onCreate,
+}: {
+  repoId: string
+  onCreate: (repoId: string, provider: string) => void
+}) {
+  const [open, setOpen]         = useState(false)
+  const [provider, setProvider] = useState('claude')
+  const { providers }           = useForgeStore()
+
+  if (!open) {
+    return (
+      <div
+        onClick={() => setOpen(true)}
+        style={{
+          padding: '5px 14px 5px 30px', cursor: 'pointer',
+          color: '#4b5563', fontSize: 12,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        <span>+</span> New workspace
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '6px 14px 6px 30px', display: 'flex', gap: 4 }}>
+      <select
+        value={provider}
+        onChange={e => setProvider(e.target.value)}
+        style={{
+          flex: 1, fontSize: 11, background: '#1a1c24',
+          color: '#d1d5db', border: '1px solid #374151', borderRadius: 4, padding: '2px 4px',
+        }}
+      >
+        {providers.map(p => (
+          <option key={p.id} value={p.id} disabled={!p.available}>
+            {p.display_name}{!p.available ? ' (not installed)' : ''}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => { onCreate(repoId, provider); setOpen(false) }}
+        style={{
+          background: '#2563eb', border: 'none', color: '#fff',
+          borderRadius: 4, fontSize: 11, padding: '2px 8px', cursor: 'pointer',
+        }}
+      >Go</button>
+      <button
+        onClick={() => setOpen(false)}
+        style={{
+          background: 'transparent', border: '1px solid #374151', color: '#6b7280',
+          borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer',
+        }}
+      >✕</button>
+    </div>
+  )
+}
