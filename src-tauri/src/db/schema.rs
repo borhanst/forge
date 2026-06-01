@@ -20,6 +20,7 @@ pub struct Workspace {
     pub branch: String,
     pub worktree_path: String,
     pub provider: String,
+    pub provider_config: Option<String>,
     pub status: String,
     pub created_at: NaiveDateTime,
     pub archived_at: Option<NaiveDateTime>,
@@ -54,6 +55,17 @@ pub struct CreateWorkspaceRequest {
 pub struct WorkspaceWithRepo {
     pub workspace: Workspace,
     pub repository: Repository,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct LineComment {
+    pub id:           Option<i64>,
+    pub workspace_id: String,
+    pub file_path:    String,
+    pub line_number:  i64,
+    pub content:      String,
+    pub author:       String,
+    pub created_at:   Option<chrono::NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

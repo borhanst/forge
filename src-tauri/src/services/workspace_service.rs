@@ -36,6 +36,7 @@ pub async fn create_workspace(
     pool: &SqlitePool,
     repo_id: &str,
     provider: &str,
+    provider_config: Option<&str>,
     worktree_base: &str,
 ) -> Result<Workspace> {
     let existing: Vec<String> = sqlx::query_scalar!(
@@ -53,16 +54,16 @@ pub async fn create_workspace(
 
     sqlx::query!(
         r#"INSERT INTO workspaces
-           (id, repo_id, city_name, branch, worktree_path, provider, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'idle', ?)"#,
-        ws_id, repo_id, city_name, branch, worktree_path, provider, now
+           (id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'idle', ?)"#,
+        ws_id, repo_id, city_name, branch, worktree_path, provider, provider_config, now
     )
     .execute(pool)
     .await?;
 
     let ws = sqlx::query_as!(
         Workspace,
-        "SELECT * FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
         ws_id
     )
     .fetch_one(pool)

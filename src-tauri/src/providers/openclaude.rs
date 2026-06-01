@@ -1,5 +1,6 @@
 use super::{AgentProvider, ProviderInfo};
 use async_trait::async_trait;
+use std::collections::HashMap;
 
 pub struct OpenClaudeProvider;
 
@@ -14,7 +15,7 @@ impl AgentProvider for OpenClaudeProvider {
         }
     }
 
-    fn build_command(&self, prompt: &str, _worktree_path: &str) -> (String, Vec<String>) {
+    fn build_command(&self, prompt: &str, _worktree_path: &str, _options: &HashMap<String, String>) -> (String, Vec<String>) {
         (
             "openclaude".to_string(),
             vec!["-p".to_string(), prompt.to_string()],

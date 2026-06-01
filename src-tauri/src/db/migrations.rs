@@ -15,15 +15,16 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
         );
 
         CREATE TABLE IF NOT EXISTS workspaces (
-            id            TEXT PRIMARY KEY,
-            repo_id       TEXT NOT NULL,
-            city_name     TEXT NOT NULL,
-            branch        TEXT NOT NULL,
-            worktree_path TEXT NOT NULL UNIQUE,
-            provider      TEXT NOT NULL DEFAULT 'claude',
-            status        TEXT NOT NULL DEFAULT 'idle',
-            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-            archived_at   DATETIME,
+            id              TEXT PRIMARY KEY,
+            repo_id         TEXT NOT NULL,
+            city_name       TEXT NOT NULL,
+            branch          TEXT NOT NULL,
+            worktree_path   TEXT NOT NULL UNIQUE,
+            provider        TEXT NOT NULL DEFAULT 'claude',
+            provider_config TEXT,
+            status          TEXT NOT NULL DEFAULT 'idle',
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            archived_at     DATETIME,
             FOREIGN KEY(repo_id) REFERENCES repositories(id) ON DELETE CASCADE
         );
 
@@ -65,10 +66,28 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_pr_workspace ON pull_requests(workspace_id);
+
+        CREATE TABLE IF NOT EXISTS line_comments (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            workspace_id TEXT NOT NULL,
+            file_path    TEXT NOT NULL,
+            line_number  INTEGER NOT NULL,
+            content      TEXT NOT NULL,
+            author       TEXT NOT NULL DEFAULT 'User',
+            created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_line_comments_workspace ON line_comments(workspace_id);
     "#,
     )
     .execute(pool)
     .await?;
+
+    // Migration: add provider_config column to existing workspaces table
+    let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN provider_config TEXT")
+        .execute(pool)
+        .await;
 
     Ok(())
 }

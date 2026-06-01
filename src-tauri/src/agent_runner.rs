@@ -1,15 +1,17 @@
 use anyhow::{Context, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::oneshot;
+use tokio::sync::{Mutex, oneshot};
 use chrono::Utc;
 use serde::Serialize;
+use serde_json;
 
 use crate::providers;
-
+use crate::state::RunningAgent;
 /// Event payloads emitted to the frontend
 #[derive(Clone, Serialize)]
 pub struct AgentOutputEvent {
@@ -35,14 +37,16 @@ pub async fn run(
     workspace_id: String,
     session_id: String,
     provider_id: String,
+    provider_options: HashMap<String, String>,
     prompt: String,
     worktree_path: String,
     shell_env: HashMap<String, String>,
+    running_agents: Arc<Mutex<HashMap<String, RunningAgent>>>,
 ) -> Result<oneshot::Sender<()>> {
     let provider = providers::get_provider(&provider_id)
         .with_context(|| format!("Unknown provider: {}", provider_id))?;
 
-    let (binary, args) = provider.build_command(&prompt, &worktree_path);
+    let (binary, args) = provider.build_command(&prompt, &worktree_path, &provider_options);
     let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
 
     // Emit "running" status immediately
@@ -128,7 +132,7 @@ pub async fn run(
 
         // Emit workspace updated event
         if let Ok(ws) = sqlx::query!(
-            "SELECT * FROM workspaces WHERE id = ?",
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
             workspace_id
         )
         .fetch_one(&db)
@@ -138,6 +142,9 @@ pub async fn run(
                 "status": ws.status,
             }));
         }
+
+        // Remove from running agents map so the workspace can be reused
+        running_agents.lock().await.remove(&workspace_id);
     });
 
     Ok(cancel_tx)

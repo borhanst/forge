@@ -152,7 +152,7 @@ async fn fetch_workspace(
 ) -> Result<Workspace, String> {
     sqlx::query_as!(
         Workspace,
-        "SELECT * FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
         workspace_id
     )
     .fetch_one(&state.db)

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use sqlx::SqlitePool;
 use serde::Serialize;
@@ -79,7 +80,7 @@ pub struct RunningAgent {
 
 pub struct AppState {
     pub db: SqlitePool,
-    pub running_agents: Mutex<HashMap<String, RunningAgent>>,
+    pub running_agents: Arc<Mutex<HashMap<String, RunningAgent>>>,
     pub app_data_dir: String,
     pub shell_env: HashMap<String, String>,
 }
@@ -91,7 +92,7 @@ impl AppState {
         tracing::info!("Resolved shell PATH: {}", path);
         Self {
             db,
-            running_agents: Mutex::new(HashMap::new()),
+            running_agents: Arc::new(Mutex::new(HashMap::new())),
             app_data_dir,
             shell_env,
         }

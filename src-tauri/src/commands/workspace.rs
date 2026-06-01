@@ -11,6 +11,7 @@ use tokio::io::AsyncBufReadExt;
 pub struct CreateWorkspaceRequest {
     pub repo_id: String,
     pub provider: String,
+    pub provider_config: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Serialize)]
@@ -76,7 +77,7 @@ pub async fn list_workspaces(
     match repo_id {
         Some(rid) => sqlx::query_as!(
             Workspace,
-            "SELECT * FROM workspaces WHERE repo_id = ? AND archived_at IS NULL ORDER BY created_at DESC",
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE repo_id = ? AND archived_at IS NULL ORDER BY created_at DESC",
             rid
         )
         .fetch_all(&state.db)
@@ -85,7 +86,7 @@ pub async fn list_workspaces(
 
         None => sqlx::query_as!(
             Workspace,
-            "SELECT * FROM workspaces WHERE archived_at IS NULL ORDER BY created_at DESC"
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE archived_at IS NULL ORDER BY created_at DESC"
         )
         .fetch_all(&state.db)
         .await
@@ -120,10 +121,15 @@ pub async fn create_workspace(
     let worktree_base = format!("{}/.forge-worktrees", repo.local_path);
     std::fs::create_dir_all(&worktree_base).map_err(|e| e.to_string())?;
 
+    let provider_config_json = req.provider_config.as_ref().map(|cfg| {
+        serde_json::to_string(cfg).unwrap_or_default()
+    });
+
     let workspace = workspace_service::create_workspace(
         &state.db,
         &req.repo_id,
         &req.provider,
+        provider_config_json.as_deref(),
         &worktree_base,
     )
     .await
@@ -166,7 +172,7 @@ pub async fn delete_workspace(
 ) -> Result<(), String> {
     let ws = sqlx::query_as!(
         Workspace,
-        "SELECT * FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
         workspace_id
     )
     .fetch_one(&state.db)
@@ -208,7 +214,7 @@ pub async fn list_archived_workspaces(
     match repo_id {
         Some(rid) => sqlx::query_as!(
             Workspace,
-            "SELECT * FROM workspaces WHERE repo_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC",
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE repo_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC",
             rid
         )
         .fetch_all(&state.db)
@@ -217,7 +223,7 @@ pub async fn list_archived_workspaces(
 
         None => sqlx::query_as!(
             Workspace,
-            "SELECT * FROM workspaces WHERE archived_at IS NOT NULL ORDER BY archived_at DESC"
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE archived_at IS NOT NULL ORDER BY archived_at DESC"
         )
         .fetch_all(&state.db)
         .await
@@ -274,6 +280,25 @@ pub async fn update_workspace_provider(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn update_workspace_config(
+    app:          AppHandle,
+    state:        State<'_, AppState>,
+    workspace_id: String,
+    config:       std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    let json = serde_json::to_string(&config).map_err(|e| e.to_string())?;
+    sqlx::query!(
+        "UPDATE workspaces SET provider_config = ? WHERE id = ?",
+        json, workspace_id
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let _ = app.emit("workspace:updated", workspace_id);
+    Ok(())
+}
+
 // ── Agent commands ─────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -291,7 +316,7 @@ pub async fn run_agent(
 ) -> Result<String, String> {
     let ws = sqlx::query_as!(
         Workspace,
-        "SELECT * FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
         request.workspace_id
     )
     .fetch_one(&state.db)
@@ -341,18 +366,38 @@ pub async fn run_agent(
         }
     };
 
-    let repo_path = repo.local_path.clone();
+    let repo_path_main = repo.local_path.clone();
     let worktree_path = ws.worktree_path.clone();
     let branch = ws.branch.clone();
+    let remote_url = repo.github_url.clone().unwrap_or_default();
 
-    let ensure_res = tokio::task::spawn_blocking(move || {
-        git_service::ensure_worktree(&repo_path, &worktree_path, &branch)
+    // Ensure worktree directory exists (as a linked worktree initially)
+    let ensure_res = tokio::task::spawn_blocking({
+        let rp = repo_path_main.clone();
+        let wp = worktree_path.clone();
+        let br = branch.clone();
+        move || git_service::ensure_worktree(&rp, &wp, &br)
     })
     .await;
 
     if let Err(e) = ensure_res.map_err(|e| e.to_string()).and_then(|r| r.map_err(|e| e.to_string())) {
         cleanup().await;
         return Err(format!("Failed to ensure workspace directory: {}", e));
+    }
+
+    // Convert the linked worktree into a standalone git repo so agents
+    // resolve the project root to the worktree, not the main repo.
+    let convert_res = tokio::task::spawn_blocking({
+        let wp = worktree_path.clone();
+        let url = remote_url.clone();
+        let br = branch.clone();
+        move || git_service::ensure_worktree_as_bare_repo(&wp, &url, &br)
+    })
+    .await;
+
+    if let Err(e) = convert_res.map_err(|e| e.to_string()).and_then(|r| r.map_err(|e| e.to_string())) {
+        cleanup().await;
+        return Err(format!("Failed to setup worktree repository: {}", e));
     }
 
     // Check that the provider's CLI is available (using resolved shell PATH)
@@ -374,15 +419,27 @@ pub async fn run_agent(
 
     let session_id = uuid::Uuid::new_v4().to_string();
 
+    let provider_options: std::collections::HashMap<String, String> = ws
+        .provider_config
+        .as_deref()
+        .and_then(|cfg| serde_json::from_str(cfg).ok())
+        .unwrap_or_default();
+
+    // Run the agent in the standalone worktree repo so all file writes and
+    // git operations resolve to the worktree, not the main repo.
+    let agent_work_dir = ws.worktree_path.clone();
+
     let run_res = agent_runner::run(
         app,
         state.db.clone(),
         request.workspace_id.clone(),
         session_id.clone(),
         ws.provider.clone(),
+        provider_options,
         request.prompt,
-        ws.worktree_path.clone(),
+        agent_work_dir,
         state.shell_env.clone(),
+        state.running_agents.clone(),
     )
     .await;
 
@@ -681,3 +738,5 @@ pub async fn install_provider(
         hint
     ))
 }
+
+

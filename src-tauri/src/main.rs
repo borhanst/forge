@@ -55,6 +55,7 @@ async fn main() {
             commands::restore_workspace,
             commands::delete_workspace,
             commands::update_workspace_provider,
+            commands::update_workspace_config,
 
             commands::run_agent,
             commands::stop_agent,
@@ -65,8 +66,15 @@ async fn main() {
             commands::debug_path,
             commands::install_provider,
 
+            commands::add_line_comment,
+            commands::get_line_comments,
+            commands::delete_line_comment,
+
             commands::get_git_status,
             commands::get_diff,
+            commands::get_structured_diff,
+            commands::get_commit_history,
+            commands::get_commit_diff,
             commands::commit_and_push,
             commands::save_github_token,
             commands::has_github_token,

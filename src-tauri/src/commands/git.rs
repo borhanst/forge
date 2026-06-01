@@ -18,13 +18,11 @@ pub async fn get_git_status(
     state:        State<'_, AppState>,
     workspace_id: String,
 ) -> Result<GitStatus, String> {
-    let ws = fetch_workspace(&state, &workspace_id).await?;
-
-    let path  = ws.worktree_path.clone();
+    let (ws, repo_path) = fetch_workspace_and_repo(&state, &workspace_id).await?;
     let branch = ws.branch.clone();
 
     let changed_files = tokio::task::spawn_blocking(move || {
-        git_service::get_changed_files(&path)
+        git_service::get_changed_files(&repo_path)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -46,11 +44,10 @@ pub async fn get_diff(
     state:        State<'_, AppState>,
     workspace_id: String,
 ) -> Result<String, String> {
-    let ws = fetch_workspace(&state, &workspace_id).await?;
-    let path = ws.worktree_path.clone();
+    let (_, repo_path) = fetch_workspace_and_repo(&state, &workspace_id).await?;
 
     tokio::task::spawn_blocking(move || {
-        git_service::get_full_diff(&path)
+        git_service::get_full_diff(&repo_path)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -68,24 +65,25 @@ pub async fn commit_and_push(
     state: State<'_, AppState>,
     req:   CommitAndPushRequest,
 ) -> Result<String, String> {
-    let ws = fetch_workspace(&state, &req.workspace_id).await?;
+    let (ws, repo_path) = fetch_workspace_and_repo(&state, &req.workspace_id).await?;
 
     let token = get_stored_token().map_err(|e| format!("No GitHub token: {}", e))?;
 
-    let path    = ws.worktree_path.clone();
+    let branch_name = ws.branch.clone();
     let message = req.commit_message.clone();
+    let repo_path_c = repo_path.clone();
+    let branch_c = branch_name.clone();
     let token_c = token.clone();
-    let path_c  = path.clone();
 
     let commit_sha = tokio::task::spawn_blocking(move || {
-        git_service::stage_and_commit(&path, &message)
+        git_service::stage_and_commit_to_branch(&repo_path, &message, &branch_name)
     })
     .await
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
 
     tokio::task::spawn_blocking(move || {
-        git_service::push_branch(&path_c, &token_c)
+        git_service::push_branch(&repo_path_c, &branch_c, &token_c)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -94,18 +92,78 @@ pub async fn commit_and_push(
     Ok(commit_sha)
 }
 
-async fn fetch_workspace(
+#[tauri::command]
+pub async fn get_structured_diff(
+    state:        State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<git_service::FileDiff>, String> {
+    let (_, repo_path) = fetch_workspace_and_repo(&state, &workspace_id).await?;
+
+    tokio::task::spawn_blocking(move || {
+        git_service::get_structured_diff(&repo_path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_commit_history(
+    state:        State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<git_service::CommitInfo>, String> {
+    let (ws, repo_path) = fetch_workspace_and_repo(&state, &workspace_id).await?;
+    let branch = ws.branch.clone();
+
+    tokio::task::spawn_blocking(move || {
+        git_service::get_commit_history(&repo_path, 50, &branch)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_commit_diff(
+    state:        State<'_, AppState>,
+    workspace_id: String,
+    commit_hash:  String,
+) -> Result<String, String> {
+    let (_, repo_path) = fetch_workspace_and_repo(&state, &workspace_id).await?;
+
+    tokio::task::spawn_blocking(move || {
+        git_service::get_commit_diff(&repo_path, &commit_hash)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+async fn fetch_workspace_and_repo(
     state:        &State<'_, AppState>,
     workspace_id: &str,
-) -> Result<Workspace, String> {
-    sqlx::query_as!(
+) -> Result<(Workspace, String), String> {
+    use crate::db::schema::Repository;
+    let ws = sqlx::query_as!(
         Workspace,
-        "SELECT * FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
         workspace_id
     )
     .fetch_one(&state.db)
     .await
-    .map_err(|e| format!("Workspace not found: {}", e))
+    .map_err(|e| format!("Workspace not found: {}", e))?;
+
+    let _repo = sqlx::query_as!(
+        Repository,
+        "SELECT * FROM repositories WHERE id = ?",
+        ws.repo_id
+    )
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| format!("Repo not found: {}", e))?;
+
+    let worktree_path = ws.worktree_path.clone();
+    Ok((ws, worktree_path))
 }
 
 fn get_stored_token() -> anyhow::Result<String> {

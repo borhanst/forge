@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DiffViewer from './DiffViewer'
 import PRPanel from './PRPanel'
 import InstallModal from './InstallModal'
@@ -6,6 +6,26 @@ import { useGitStatus } from '../hooks/useGitStatus'
 import { useForgeStore } from '../store'
 import { forge } from '../lib/tauri'
 import type { ProviderInfo } from '../lib/tauri'
+
+const OPENCODE_MODELS = [
+  { value: '', label: 'Default model' },
+  { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+  { value: 'anthropic/claude-4-20250514', label: 'Claude 4' },
+  { value: 'openai/gpt-4o', label: 'GPT-4o' },
+  { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini' },
+  { value: 'openai/o3', label: 'o3' },
+  { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
+  { value: 'opencode/deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
+  { value: '__custom__', label: 'Custom…' },
+]
+
+const OPENCODE_AGENTS = [
+  { value: '', label: 'Default (coding)' },
+  { value: 'plan', label: 'Plan' },
+  { value: '__custom__', label: 'Custom…' },
+]
 
 type Tab = 'diff' | 'pr' | 'settings'
 
@@ -21,11 +41,46 @@ export default function RightPanel({ workspaceId }: Props) {
 
   const ws = workspaces.find(w => w.id === workspaceId)
 
+  const wsConfig: Record<string, string> = ws?.provider_config
+    ? (JSON.parse(ws.provider_config) as Record<string, string>)
+    : {}
+
+  const [modelInput, setModelInput] = useState(wsConfig.model ?? '')
+  const [modelCustomInput, setModelCustomInput] = useState('')
+  const [agentInput, setAgentInput] = useState(wsConfig.agent ?? '')
+  const [agentCustomInput, setAgentCustomInput] = useState('')
+
+  useEffect(() => {
+    setModelInput(wsConfig.model ?? '')
+    setModelCustomInput('')
+    setAgentInput(wsConfig.agent ?? '')
+    setAgentCustomInput('')
+  }, [workspaceId])
+
+  const resolveModel = modelInput === '__custom__' ? modelCustomInput : modelInput
+  const resolveAgent = agentInput === '__custom__' ? agentCustomInput : agentInput
+
   const handleProviderChange = async (provider: string) => {
     try {
       await forge.updateWorkspaceProvider(workspaceId, provider)
-      // Update local store state
       const updated = workspaces.map(w => w.id === workspaceId ? { ...w, provider } : w)
+      setWorkspaces(updated)
+    } catch (e: any) {
+      alert(e)
+    }
+  }
+
+  const handleSaveConfig = async () => {
+    const config: Record<string, string> = {}
+    if (resolveModel) config.model = resolveModel
+    if (resolveAgent) config.agent = resolveAgent
+    try {
+      await forge.updateWorkspaceConfig(workspaceId, config)
+      const updated = workspaces.map(w =>
+        w.id === workspaceId
+          ? { ...w, provider_config: Object.keys(config).length ? JSON.stringify(config) : null }
+          : w
+      )
       setWorkspaces(updated)
     } catch (e: any) {
       alert(e)
@@ -63,7 +118,7 @@ export default function RightPanel({ workspaceId }: Props) {
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {tab === 'diff' && <DiffViewer workspaceId={workspaceId} />}
+        {tab === 'diff' && <DiffViewer workspaceId={workspaceId} onSwitchToPR={() => setTab('pr')} />}
         {tab === 'pr'   && (
           <PRPanel
             workspaceId={workspaceId}
@@ -113,6 +168,89 @@ export default function RightPanel({ workspaceId }: Props) {
                 Changing the provider will apply to future agent runs in this workspace.
               </p>
             </div>
+
+            {ws?.provider === 'opencode' && (
+              <div>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 8, fontWeight: 600, textTransform: 'uppercase' }}>
+                  Model
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <select
+                    value={modelInput}
+                    onChange={e => setModelInput(e.target.value)}
+                    style={{
+                      background: '#1e293b', border: '1px solid #334155',
+                      color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                      outline: 'none',
+                    }}
+                  >
+                    {OPENCODE_MODELS.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                  {modelInput === '__custom__' && (
+                    <input
+                      placeholder="Enter model name…"
+                      value={modelCustomInput}
+                      onChange={e => setModelCustomInput(e.target.value)}
+                      style={{
+                        background: '#1e293b', border: '1px solid #334155',
+                        color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                        outline: 'none',
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {ws?.provider === 'opencode' && (
+              <div>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 8, fontWeight: 600, textTransform: 'uppercase' }}>
+                  Mode
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <select
+                    value={agentInput}
+                    onChange={e => setAgentInput(e.target.value)}
+                    style={{
+                      background: '#1e293b', border: '1px solid #334155',
+                      color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                      outline: 'none',
+                    }}
+                  >
+                    {OPENCODE_AGENTS.map(a => (
+                      <option key={a.value} value={a.value}>{a.label}</option>
+                    ))}
+                  </select>
+                  {agentInput === '__custom__' && (
+                    <input
+                      placeholder="Enter agent name…"
+                      value={agentCustomInput}
+                      onChange={e => setAgentCustomInput(e.target.value)}
+                      style={{
+                        background: '#1e293b', border: '1px solid #334155',
+                        color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                        outline: 'none',
+                      }}
+                    />
+                  )}
+                  <button
+                    onClick={handleSaveConfig}
+                    style={{
+                      background: '#2563eb', border: 'none', color: '#fff',
+                      borderRadius: 6, padding: '8px 12px', fontSize: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+                <p style={{ color: '#475569', fontSize: 11, marginTop: 8 }}>
+                  Passed as <code style={{ color: '#94a3b8' }}>--model</code> and <code style={{ color: '#94a3b8' }}>--agent</code> flags to <code style={{ color: '#94a3b8' }}>opencode run</code>.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

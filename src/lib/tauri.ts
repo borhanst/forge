@@ -20,6 +20,7 @@ export interface Workspace {
   branch: string
   worktree_path: string
   provider: string
+  provider_config: string | null
   status: 'idle' | 'running' | 'done' | 'error' | 'archived'
   created_at: string
   archived_at: string | null
@@ -78,6 +79,32 @@ export interface GitStatus {
   has_changes:   boolean
 }
 
+export interface FileDiff {
+  path:      string
+  status:    'added' | 'modified' | 'deleted'
+  additions: number
+  deletions: number
+  diff:      string
+}
+
+export interface LineComment {
+  id:           number
+  workspace_id: string
+  file_path:    string
+  line_number:  number
+  content:      string
+  author:       string
+  created_at:   string
+}
+
+export interface CommitInfo {
+  hash:        string
+  short_hash:  string
+  author:      string
+  message:     string
+  timestamp:   number
+}
+
 export interface PullRequestRecord {
   id:           string | null
   workspace_id: string | null
@@ -113,8 +140,8 @@ export const forge = {
   removeRepo: (repoId: string) =>
     invoke<void>('remove_repo', { repoId }),
 
-  createWorkspace: (repoId: string, provider: string) =>
-    invoke<Workspace>('create_workspace', { req: { repo_id: repoId, provider } }),
+  createWorkspace: (repoId: string, provider: string, providerConfig?: Record<string, string>) =>
+    invoke<Workspace>('create_workspace', { req: { repo_id: repoId, provider, provider_config: providerConfig } }),
 
   archiveWorkspace: (workspaceId: string) =>
     invoke<void>('archive_workspace', { workspaceId }),
@@ -127,6 +154,9 @@ export const forge = {
 
   updateWorkspaceProvider: (workspaceId: string, provider: string) =>
     invoke<void>('update_workspace_provider', { workspaceId, provider }),
+
+  updateWorkspaceConfig: (workspaceId: string, config: Record<string, string>) =>
+    invoke<void>('update_workspace_config', { workspaceId, config }),
 
   listArchivedWorkspaces: (repoId?: string) =>
     invoke<Workspace[]>('list_archived_workspaces', { repoId }),
@@ -151,6 +181,24 @@ export const forge = {
 
   getDiff: (workspaceId: string) =>
     invoke<string>('get_diff', { workspaceId }),
+
+  getStructuredDiff: (workspaceId: string) =>
+    invoke<FileDiff[]>('get_structured_diff', { workspaceId }),
+
+  addLineComment: (workspaceId: string, filePath: string, lineNumber: number, content: string) =>
+    invoke<number>('add_line_comment', { workspaceId, filePath, lineNumber, content }),
+
+  getLineComments: (workspaceId: string) =>
+    invoke<LineComment[]>('get_line_comments', { workspaceId }),
+
+  deleteLineComment: (id: number) =>
+    invoke<void>('delete_line_comment', { id }),
+
+  getCommitHistory: (workspaceId: string) =>
+    invoke<CommitInfo[]>('get_commit_history', { workspaceId }),
+
+  getCommitDiff: (workspaceId: string, commitHash: string) =>
+    invoke<string>('get_commit_diff', { workspaceId, commitHash }),
 
   commitAndPush: (workspaceId: string, commitMessage: string) =>
     invoke<string>('commit_and_push', { req: { workspace_id: workspaceId, commit_message: commitMessage } }),

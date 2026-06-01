@@ -6,6 +6,7 @@ pub mod opencode;
 pub mod openclaude;
 
 use async_trait::async_trait;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ProviderInfo {
@@ -57,7 +58,7 @@ pub trait AgentProvider: Send + Sync {
             })
     }
 
-    fn build_command(&self, prompt: &str, worktree_path: &str) -> (String, Vec<String>);
+    fn build_command(&self, prompt: &str, worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>);
 
     /// Ordered list of install attempts. Runner tries each in order, stops at first exit-0.
     fn install_options(&self) -> Vec<Vec<String>> {

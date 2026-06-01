@@ -5,6 +5,26 @@ import type { Workspace, ProviderInfo } from '../lib/tauri'
 import AddRepoModal from './AddRepoModal'
 import InstallModal from './InstallModal'
 
+const OPENCODE_MODELS = [
+  { value: '', label: 'Default model' },
+  { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+  { value: 'anthropic/claude-4-20250514', label: 'Claude 4' },
+  { value: 'openai/gpt-4o', label: 'GPT-4o' },
+  { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini' },
+  { value: 'openai/o3', label: 'o3' },
+  { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
+  { value: 'opencode/deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
+  { value: '__custom__', label: 'Custom…' },
+]
+
+const OPENCODE_AGENTS = [
+  { value: '', label: 'Default (coding)' },
+  { value: 'plan', label: 'Plan' },
+  { value: '__custom__', label: 'Custom…' },
+]
+
 export default function Sidebar() {
   const {
     repositories, workspaces,
@@ -59,9 +79,9 @@ export default function Sidebar() {
     setActiveRepo(id)
   }
 
-  const handleCreateWorkspace = async (repoId: string, provider: string) => {
+  const handleCreateWorkspace = async (repoId: string, provider: string, providerConfig?: Record<string, string>) => {
     try {
-      await forge.createWorkspace(repoId, provider)
+      await forge.createWorkspace(repoId, provider, providerConfig)
     } catch (e) {
       console.error('Failed to create workspace:', e)
       alert(`Failed to create workspace: ${e}`)
@@ -301,10 +321,14 @@ function NewWorkspaceRow({
   repoId, onCreate,
 }: {
   repoId: string
-  onCreate: (repoId: string, provider: string) => void
+  onCreate: (repoId: string, provider: string, providerConfig?: Record<string, string>) => void
 }) {
   const [open, setOpen]         = useState(false)
   const [provider, setProvider] = useState('claude')
+  const [model, setModel]       = useState('')
+  const [modelCustom, setModelCustom] = useState('')
+  const [agent, setAgent]       = useState('')
+  const [agentCustom, setAgentCustom] = useState('')
   const [installProvider, setInstallProvider] = useState<ProviderInfo | null>(null)
   const { providers, setProviders } = useForgeStore()
 
@@ -324,49 +348,119 @@ function NewWorkspaceRow({
   }
 
   const selectedProvider = providers.find(p => p.id === provider)
+  const showOpenCodeOptions = provider === 'opencode'
+
+  const handleGo = () => {
+    const config: Record<string, string> = {}
+    const resolvedModel = model === '__custom__' ? modelCustom : model
+    const resolvedAgent = agent === '__custom__' ? agentCustom : agent
+    if (resolvedModel) config.model = resolvedModel
+    if (resolvedAgent) config.agent = resolvedAgent
+    onCreate(repoId, provider, Object.keys(config).length ? config : undefined)
+    setOpen(false)
+  }
 
   return (
-    <div style={{ padding: '6px 14px 6px 30px', display: 'flex', gap: 4, alignItems: 'center' }}>
-      <select
-        value={provider}
-        onChange={e => setProvider(e.target.value)}
-        style={{
-          flex: 1, fontSize: 11, background: '#1a1c24',
-          color: '#d1d5db', border: '1px solid #374151', borderRadius: 4, padding: '2px 4px',
-        }}
-      >
-        {providers.map(p => (
-          <option key={p.id} value={p.id} disabled={!p.available}>
-            {p.display_name}{!p.available ? ' (not installed)' : ''}
-          </option>
-        ))}
-      </select>
-      {selectedProvider && !selectedProvider.available && (
-        <button
-          onClick={() => setInstallProvider(selectedProvider)}
+    <div style={{ padding: '6px 14px 6px 30px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <select
+          value={provider}
+          onChange={e => { setProvider(e.target.value); setModel(''); setAgent('') }}
           style={{
-            background: '#2563eb', border: 'none', color: '#fff',
-            borderRadius: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer',
-            whiteSpace: 'nowrap',
+            flex: 1, fontSize: 11, background: '#1a1c24',
+            color: '#d1d5db', border: '1px solid #374151', borderRadius: 4, padding: '2px 4px',
           }}
         >
-          Install
-        </button>
+          {providers.map(p => (
+            <option key={p.id} value={p.id} disabled={!p.available}>
+              {p.display_name}{!p.available ? ' (not installed)' : ''}
+            </option>
+          ))}
+        </select>
+        {selectedProvider && !selectedProvider.available && (
+          <button
+            onClick={() => setInstallProvider(selectedProvider)}
+            style={{
+              background: '#2563eb', border: 'none', color: '#fff',
+              borderRadius: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Install
+          </button>
+        )}
+        <button
+          onClick={handleGo}
+          style={{
+            background: '#2563eb', border: 'none', color: '#fff',
+            borderRadius: 4, fontSize: 11, padding: '2px 8px', cursor: 'pointer',
+          }}
+        >Go</button>
+        <button
+          onClick={() => setOpen(false)}
+          style={{
+            background: 'transparent', border: '1px solid #374151', color: '#6b7280',
+            borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer',
+          }}
+        >✕</button>
+      </div>
+
+      {showOpenCodeOptions && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 0 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <select
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              style={{
+                flex: 1, fontSize: 10, background: '#1a1c24',
+                color: '#d1d5db', border: '1px solid #374151', borderRadius: 4,
+                padding: '2px 4px', outline: 'none',
+              }}
+            >
+              {OPENCODE_MODELS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <select
+              value={agent}
+              onChange={e => setAgent(e.target.value)}
+              style={{
+                width: 110, fontSize: 10, background: '#1a1c24',
+                color: '#d1d5db', border: '1px solid #374151', borderRadius: 4,
+                padding: '2px 4px', outline: 'none',
+              }}
+            >
+              {OPENCODE_AGENTS.map(a => (
+                <option key={a.value} value={a.value}>{a.label}</option>
+              ))}
+            </select>
+          </div>
+          {model === '__custom__' && (
+            <input
+              placeholder="Enter model name…"
+              value={modelCustom}
+              onChange={e => setModelCustom(e.target.value)}
+              style={{
+                fontSize: 10, background: '#1a1c24',
+                color: '#d1d5db', border: '1px solid #374151', borderRadius: 4,
+                padding: '2px 4px', outline: 'none',
+              }}
+            />
+          )}
+          {agent === '__custom__' && (
+            <input
+              placeholder="Enter agent name…"
+              value={agentCustom}
+              onChange={e => setAgentCustom(e.target.value)}
+              style={{
+                fontSize: 10, background: '#1a1c24',
+                color: '#d1d5db', border: '1px solid #374151', borderRadius: 4,
+                padding: '2px 4px', outline: 'none',
+              }}
+            />
+          )}
+        </div>
       )}
-      <button
-        onClick={() => { onCreate(repoId, provider); setOpen(false) }}
-        style={{
-          background: '#2563eb', border: 'none', color: '#fff',
-          borderRadius: 4, fontSize: 11, padding: '2px 8px', cursor: 'pointer',
-        }}
-      >Go</button>
-      <button
-        onClick={() => setOpen(false)}
-        style={{
-          background: 'transparent', border: '1px solid #374151', color: '#6b7280',
-          borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer',
-        }}
-      >✕</button>
 
       {installProvider && (
         <InstallModal
