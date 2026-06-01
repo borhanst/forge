@@ -4,6 +4,7 @@ import { useForgeStore } from '../store'
 import type { Workspace, ProviderInfo } from '../lib/tauri'
 import AddRepoModal from './AddRepoModal'
 import InstallModal from './InstallModal'
+import MergeModal from './MergeModal'
 
 const OPENCODE_MODELS = [
   { value: '', label: 'Default model' },
@@ -36,6 +37,7 @@ export default function Sidebar() {
   const [showAddRepo, setShowAddRepo]     = useState(false)
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set())
   const [updateProviderWsId, setUpdateProviderWsId] = useState<string | null>(null)
+  const [mergeWsId, setMergeWsId] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
@@ -204,6 +206,7 @@ export default function Sidebar() {
                       onArchive={(e) => handleArchive(ws.id, e)}
                       onDelete={(e) => handleDelete(ws.id, e)}
                       onUpdateProvider={(wsId) => setUpdateProviderWsId(wsId)}
+                      onMerge={() => setMergeWsId(ws.id)}
                     />
                   ))}
 
@@ -232,12 +235,27 @@ export default function Sidebar() {
           onUpdated={loadData}
         />
       )}
+
+      {mergeWsId && (() => {
+        const ws = workspaces.find(w => w.id === mergeWsId)
+        if (!ws) return null
+        return (
+          <MergeModal
+            workspaceId={mergeWsId}
+            workspaceName={ws.city_name}
+            defaultPush={!!ws.merge_push}
+            defaultCleanup={ws.merge_cleanup || 'archive'}
+            onClose={() => setMergeWsId(null)}
+            onMerged={() => { setMergeWsId(null); loadData() }}
+          />
+        )
+      })()}
     </aside>
   )
 }
 
 function WorkspaceItem({
-  workspace, active, onSelect, onArchive, onDelete, onUpdateProvider,
+  workspace, active, onSelect, onArchive, onDelete, onUpdateProvider, onMerge,
 }: {
   workspace: Workspace
   active: boolean
@@ -245,6 +263,7 @@ function WorkspaceItem({
   onArchive: (e: React.MouseEvent) => void
   onDelete: (e: React.MouseEvent) => void
   onUpdateProvider: (wsId: string) => void
+  onMerge: (e: React.MouseEvent) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const STATUS_COLOR: Record<string, string> = {
@@ -297,6 +316,10 @@ function WorkspaceItem({
               <MenuItem
                 label="Update Provider"
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onUpdateProvider(workspace.id) }}
+              />
+              <MenuItem
+                label="Merge"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onMerge(e) }}
               />
               <MenuItem
                 label="Archive"

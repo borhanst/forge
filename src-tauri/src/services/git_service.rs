@@ -1,4 +1,4 @@
-use git2::{Repository, StatusOptions, DiffFormat, DiffOptions, Signature, Oid, Sort};
+use git2::{Repository, BranchType, StatusOptions, DiffFormat, DiffOptions, Signature, Oid, Sort};
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
@@ -168,6 +168,31 @@ pub fn default_branch(repo_path: &str) -> Result<String> {
     let repo = Repository::open(repo_path)?;
     let head = repo.head()?;
     Ok(head.shorthand().unwrap_or("main").to_string())
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BranchInfo {
+    pub name: String,
+    pub is_default: bool,
+}
+
+pub fn list_local_branches(repo_path: &str) -> Result<Vec<BranchInfo>> {
+    let repo = Repository::open(repo_path)?;
+    let default = default_branch(repo_path).unwrap_or_default();
+
+    let branches = repo.branches(Some(BranchType::Local))?
+        .filter_map(|b| b.ok())
+        .map(|(branch, _)| {
+            let name = branch.name().ok().flatten().unwrap_or("").to_string();
+            BranchInfo {
+                is_default: name == default,
+                name,
+            }
+        })
+        .filter(|b| !b.name.starts_with("forge/"))
+        .collect();
+
+    Ok(branches)
 }
 
 pub fn parse_github_url(url: &str) -> Option<(String, String)> {
@@ -455,6 +480,251 @@ pub fn get_commit_diff(worktree_path: &str, commit_hash: &str) -> Result<String>
     })?;
 
     Ok(output)
+}
+
+pub fn checkout_branch(repo_path: &str, branch_name: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "checkout", branch_name])
+        .output()
+        .with_context(|| format!("Failed to checkout {}", branch_name))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("git checkout failed: {}", stderr.trim()));
+    }
+    Ok(())
+}
+
+pub fn merge_branch(repo_path: &str, source_branch: &str) -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "merge", source_branch])
+        .output()
+        .with_context(|| format!("Failed to merge {}", source_branch))?;
+
+    if output.status.success() {
+        return Ok(vec![]);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Check for conflicts
+    if stderr.contains("CONFLICT") || stderr.contains("conflict") {
+        // Get conflicting files
+        let conflict_output = Command::new("git")
+            .args(["-C", repo_path, "diff", "--name-only", "--diff-filter=U"])
+            .output()
+            .with_context(|| "Failed to list conflicted files")?;
+
+        if conflict_output.status.success() {
+            let files: Vec<String> = String::from_utf8_lossy(&conflict_output.stderr)
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect();
+            // Also check stdout
+            let stdout_files: Vec<String> = String::from_utf8_lossy(&conflict_output.stdout)
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect();
+            let mut all = files;
+            all.extend(stdout_files);
+            if !all.is_empty() {
+                abort_merge(repo_path)?;
+                return Ok(all);
+            }
+        }
+    }
+
+    abort_merge(repo_path)?;
+    Err(anyhow::anyhow!("Merge failed: {}", stderr.trim()))
+}
+
+pub fn abort_merge(repo_path: &str) -> Result<()> {
+    let _ = Command::new("git")
+        .args(["-C", repo_path, "merge", "--abort"])
+        .output();
+    Ok(())
+}
+
+/// Like merge_branch but does NOT abort on conflict — leaves the repo in MERGING state.
+pub fn merge_no_abort(repo_path: &str, source_branch: &str) -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "merge", source_branch])
+        .output()
+        .with_context(|| format!("Failed to merge {}", source_branch))?;
+
+    if output.status.success() {
+        return Ok(vec![]);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("CONFLICT") || stderr.contains("conflict") {
+        let conflict_output = Command::new("git")
+            .args(["-C", repo_path, "diff", "--name-only", "--diff-filter=U"])
+            .output()
+            .with_context(|| "Failed to list conflicted files")?;
+
+        let mut all = Vec::new();
+        if conflict_output.status.success() {
+            for src in [&conflict_output.stdout, &conflict_output.stderr] {
+                for line in String::from_utf8_lossy(src).lines() {
+                    let trimmed = line.trim();
+                    if !trimmed.is_empty() {
+                        all.push(trimmed.to_string());
+                    }
+                }
+            }
+        }
+        if !all.is_empty() {
+            return Ok(all);
+        }
+    }
+
+    Err(anyhow::anyhow!("Merge failed: {}", stderr.trim()))
+}
+
+pub fn list_unmerged_files(repo_path: &str) -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "diff", "--name-only", "--diff-filter=U"])
+        .output()
+        .with_context(|| "Failed to list unmerged files")?;
+
+    let mut files = Vec::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            files.push(trimmed.to_string());
+        }
+    }
+    Ok(files)
+}
+
+pub fn stage_all(repo_path: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "add", "-A"])
+        .output()
+        .with_context(|| "Failed to stage files")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("git add -A failed: {}", stderr.trim()));
+    }
+    Ok(())
+}
+
+pub fn commit(repo_path: &str, message: &str) -> Result<String> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "commit", "-m", message])
+        .output()
+        .with_context(|| "Failed to commit")?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout.trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // If nothing to commit, that's fine
+        if stderr.contains("nothing to commit") {
+            return Ok("nothing to commit".to_string());
+        }
+        Err(anyhow::anyhow!("git commit failed: {}", stderr.trim()))
+    }
+}
+
+pub fn branch_exists(repo_path: &str, branch_name: &str) -> Result<bool> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "rev-parse", "--verify", &format!("refs/heads/{}", branch_name)])
+        .output()?;
+    Ok(output.status.success())
+}
+
+pub fn delete_local_branch(repo_path: &str, branch_name: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "branch", "-D", branch_name])
+        .output()
+        .with_context(|| format!("Failed to delete branch {}", branch_name))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!("git branch -D {} failed: {}", branch_name, stderr.trim());
+    }
+    Ok(())
+}
+
+pub fn delete_remote_branch(repo_path: &str, branch_name: &str, token: &str) -> Result<()> {
+    let repo = Repository::open(repo_path)?;
+    let mut remote = repo.find_remote("origin")?;
+
+    let refspec = format!(":refs/heads/{}", branch_name);
+
+    let mut push_opts = git2::PushOptions::new();
+    let mut callbacks = git2::RemoteCallbacks::new();
+
+    let token_clone = token.to_string();
+    callbacks.credentials(move |_url, _username, _allowed| {
+        git2::Cred::userpass_plaintext("x-access-token", &token_clone)
+    });
+
+    push_opts.remote_callbacks(callbacks);
+    let _ = remote.push(&[&refspec], Some(&mut push_opts));
+    Ok(())
+}
+
+/// Push a branch using git CLI (uses user's configured git credentials — SSH, credential helper, etc.)
+pub fn push_branch_cli(repo_path: &str, branch_name: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "push", "origin", branch_name])
+        .output()
+        .with_context(|| format!("Failed to push {} to origin", branch_name))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("git push failed: {}", stderr.trim()));
+    }
+    Ok(())
+}
+
+/// Delete remote branch using git CLI (uses user's configured git credentials)
+pub fn delete_remote_branch_cli(repo_path: &str, branch_name: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "push", "origin", "--delete", branch_name])
+        .output()
+        .with_context(|| format!("Failed to delete remote branch {}", branch_name))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!("git push origin --delete {} failed: {}", branch_name, stderr.trim());
+    }
+    Ok(())
+}
+
+/// Push a branch from the worktree to its local origin (the main repo, no auth needed)
+pub fn push_local(repo_path: &str, branch_name: &str) -> Result<()> {
+    let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+    let output = Command::new("git")
+        .args(["-C", repo_path, "push", "origin", &refspec])
+        .output()
+        .with_context(|| format!("Failed to push {} to local origin", branch_name))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("git push to local origin failed: {}", stderr.trim()));
+    }
+    Ok(())
+}
+
+pub fn fetch_branch(repo_path: &str, remote_name: &str, branch_name: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["-C", repo_path, "fetch", remote_name, branch_name])
+        .output()
+        .with_context(|| format!("Failed to fetch {} from {}", branch_name, remote_name))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!("git fetch {} {} failed: {}", remote_name, branch_name, stderr.trim());
+    }
+    Ok(())
 }
 
 pub fn push_branch(repo_path: &str, branch_name: &str, token: &str) -> Result<()> {

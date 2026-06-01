@@ -24,6 +24,8 @@ export interface Workspace {
   status: 'idle' | 'running' | 'done' | 'error' | 'archived'
   created_at: string
   archived_at: string | null
+  merge_push: number | null
+  merge_cleanup: string | null
 }
 
 export interface ProviderInfo {
@@ -69,6 +71,17 @@ export interface AgentStatusSnapshot {
   workspace_id: string
   session_id: string
   provider_id: string
+}
+
+export interface MergeResult {
+  success: boolean
+  conflicted_files: string[]
+  message: string
+}
+
+export interface BranchInfo {
+  name: string
+  is_default: boolean
 }
 
 export interface GitStatus {
@@ -176,6 +189,15 @@ export const forge = {
   listRunningAgents: () =>
     invoke<AgentStatusSnapshot[]>('list_running_agents'),
 
+  listBranches: (workspaceId: string) =>
+    invoke<BranchInfo[]>('list_branches', { workspaceId }),
+
+  mergeWorktree: (workspaceId: string, targetBranch: string, pushToRemote: boolean, cleanup: string) =>
+    invoke<MergeResult>('merge_worktree', { req: { workspace_id: workspaceId, target_branch: targetBranch, push_to_remote: pushToRemote, cleanup } }),
+
+  resolveAndFinishMerge: (workspaceId: string, targetBranch: string, pushToRemote: boolean, cleanup: string) =>
+    invoke<MergeResult>('resolve_and_finish_merge', { req: { workspace_id: workspaceId, target_branch: targetBranch, push_to_remote: pushToRemote, cleanup } }),
+
   getGitStatus: (workspaceId: string) =>
     invoke<GitStatus>('get_git_status', { workspaceId }),
 
@@ -231,6 +253,9 @@ export const forge = {
 
   installProvider: (providerId: string) =>
     invoke<void>('install_provider', { providerId }),
+
+  updateWorkspaceMergeSettings: (workspaceId: string, mergePush: boolean, mergeCleanup: string) =>
+    invoke<void>('update_workspace_merge_settings', { req: { workspace_id: workspaceId, merge_push: mergePush, merge_cleanup: mergeCleanup } }),
 }
 
 export const forgeEvents = {

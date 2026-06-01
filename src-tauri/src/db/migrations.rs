@@ -89,5 +89,13 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
         .execute(pool)
         .await;
 
+    // Migration: add merge settings columns
+    let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN merge_push INTEGER DEFAULT 0")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN merge_cleanup TEXT DEFAULT 'archive'")
+        .execute(pool)
+        .await;
+
     Ok(())
 }

@@ -50,11 +50,20 @@ export default function RightPanel({ workspaceId }: Props) {
   const [agentInput, setAgentInput] = useState(wsConfig.agent ?? '')
   const [agentCustomInput, setAgentCustomInput] = useState('')
 
+  const [mergePush, setMergePush] = useState(!!ws?.merge_push)
+  const [mergeCleanup, setMergeCleanup] = useState(ws?.merge_cleanup || 'archive')
+  const [savingMerge, setSavingMerge] = useState(false)
+
   useEffect(() => {
     setModelInput(wsConfig.model ?? '')
     setModelCustomInput('')
     setAgentInput(wsConfig.agent ?? '')
     setAgentCustomInput('')
+  }, [workspaceId])
+
+  useEffect(() => {
+    setMergePush(!!ws?.merge_push)
+    setMergeCleanup(ws?.merge_cleanup ?? 'archive')
   }, [workspaceId])
 
   const resolveModel = modelInput === '__custom__' ? modelCustomInput : modelInput
@@ -251,6 +260,70 @@ export default function RightPanel({ workspaceId }: Props) {
                 </p>
               </div>
             )}
+
+            <div style={{ borderTop: '1px solid #1e2235', paddingTop: 16 }}>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                Merge Defaults
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#d1d5db', fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={mergePush}
+                    onChange={e => setMergePush(e.target.checked)}
+                    style={{ accentColor: '#2563eb' }}
+                  />
+                  Push to remote after merge
+                </label>
+
+                <div>
+                  <label style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginBottom: 4 }}>
+                    Cleanup after merge
+                  </label>
+                  <select
+                    value={mergeCleanup}
+                    onChange={e => setMergeCleanup(e.target.value)}
+                    style={{
+                      width: '100%', background: '#1e293b', border: '1px solid #334155',
+                      color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="archive">Archive workspace</option>
+                    <option value="delete">Delete workspace + branch</option>
+                    <option value="none">No cleanup</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    setSavingMerge(true)
+                    try {
+                      await forge.updateWorkspaceMergeSettings(workspaceId, mergePush, mergeCleanup)
+                      const updated = workspaces.map(w =>
+                        w.id === workspaceId
+                          ? { ...w, merge_push: mergePush ? 1 : 0, merge_cleanup: mergeCleanup }
+                          : w
+                      )
+                      setWorkspaces(updated)
+                    } catch (e: any) {
+                      alert(String(e))
+                    } finally {
+                      setSavingMerge(false)
+                    }
+                  }}
+                  disabled={savingMerge}
+                  style={{
+                    background: '#2563eb', border: 'none', color: '#fff',
+                    borderRadius: 6, padding: '8px 12px', fontSize: 12,
+                    cursor: 'pointer', opacity: savingMerge ? 0.6 : 1,
+                  }}
+                >
+                  {savingMerge ? 'Saving...' : 'Save Merge Settings'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

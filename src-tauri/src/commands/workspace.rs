@@ -77,7 +77,7 @@ pub async fn list_workspaces(
     match repo_id {
         Some(rid) => sqlx::query_as!(
             Workspace,
-            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE repo_id = ? AND archived_at IS NULL ORDER BY created_at DESC",
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE repo_id = ? AND archived_at IS NULL ORDER BY created_at DESC",
             rid
         )
         .fetch_all(&state.db)
@@ -86,7 +86,7 @@ pub async fn list_workspaces(
 
         None => sqlx::query_as!(
             Workspace,
-            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE archived_at IS NULL ORDER BY created_at DESC"
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE archived_at IS NULL ORDER BY created_at DESC"
         )
         .fetch_all(&state.db)
         .await
@@ -182,7 +182,7 @@ pub async fn delete_workspace(
 ) -> Result<(), String> {
     let ws = sqlx::query_as!(
         Workspace,
-        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE id = ?",
         workspace_id
     )
     .fetch_one(&state.db)
@@ -224,7 +224,7 @@ pub async fn list_archived_workspaces(
     match repo_id {
         Some(rid) => sqlx::query_as!(
             Workspace,
-            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE repo_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC",
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE repo_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC",
             rid
         )
         .fetch_all(&state.db)
@@ -233,7 +233,7 @@ pub async fn list_archived_workspaces(
 
         None => sqlx::query_as!(
             Workspace,
-            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE archived_at IS NOT NULL ORDER BY archived_at DESC"
+            "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE archived_at IS NOT NULL ORDER BY archived_at DESC"
         )
         .fetch_all(&state.db)
         .await
@@ -326,7 +326,7 @@ pub async fn run_agent(
 ) -> Result<String, String> {
     let ws = sqlx::query_as!(
         Workspace,
-        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE id = ?",
         request.workspace_id
     )
     .fetch_one(&state.db)

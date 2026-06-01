@@ -102,9 +102,9 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
     }}>
 
       {!hasToken && (
-        <Section title="GitHub Token">
+        <Section title="GitHub Token (for PR creation)">
           <p style={{ color: '#6b7280', marginBottom: 8, fontSize: 12 }}>
-            Required for push and PR creation. Stored in your OS keychain.
+            Only needed if you want to create Pull Requests. Push uses your local git credentials.
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -134,7 +134,7 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
       )}
 
       <Section title="Commit & Push">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ color: '#6b7280', fontSize: 12 }}>
             {gitStatus?.changed_count ?? 0} changed file(s)
           </span>
@@ -142,6 +142,9 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
             <span style={{ color: '#f59e0b', fontSize: 11 }}>{"\u25cf"}</span>
           )}
         </div>
+        <p style={{ color: '#4b5563', fontSize: 11, marginBottom: 8 }}>
+          Uses your local git credentials (SSH key, credential helper, etc.).
+        </p>
 
         <textarea
           value={commitMsg}
@@ -152,11 +155,11 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
         />
         <button
           onClick={handleCommitPush}
-          disabled={loading || !commitMsg.trim() || !hasToken}
+          disabled={loading || !commitMsg.trim()}
           style={{
             ...btnPrimary,
-            opacity: (loading || !commitMsg.trim() || !hasToken) ? 0.5 : 1,
-            cursor:  (loading || !commitMsg.trim() || !hasToken) ? 'not-allowed' : 'pointer',
+            opacity: (loading || !commitMsg.trim()) ? 0.5 : 1,
+            cursor:  (loading || !commitMsg.trim()) ? 'not-allowed' : 'pointer',
           }}
         >
           {loading ? 'Working...' : 'Commit & Push'}

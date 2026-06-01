@@ -63,7 +63,7 @@ pub async fn create_workspace(
 
     let ws = sqlx::query_as!(
         Workspace,
-        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at FROM workspaces WHERE id = ?",
+        "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE id = ?",
         ws_id
     )
     .fetch_one(pool)

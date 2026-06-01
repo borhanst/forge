@@ -24,6 +24,8 @@ pub struct Workspace {
     pub status: String,
     pub created_at: NaiveDateTime,
     pub archived_at: Option<NaiveDateTime>,
+    pub merge_push: Option<i64>,
+    pub merge_cleanup: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
