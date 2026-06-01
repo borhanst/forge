@@ -15,95 +15,75 @@ pub fn open_repo(path: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn add_worktree(
-    repo_path: &str,
+/// Create a standalone worktree repo via `git clone --shared`.
+/// This avoids git's linked worktree mechanism entirely, so there's no stale
+/// metadata in the main repo and no `.git` symlink confusion for agents.
+pub fn clone_shared_worktree(
+    main_repo_path: &str,
     worktree_path: &str,
     branch_name: &str,
+    remote_url: Option<&str>,
 ) -> Result<()> {
-    let output = Command::new("git")
-        .args([
-            "-C", repo_path,
-            "worktree", "add",
-            "-b", branch_name,
-            worktree_path,
-        ])
-        .output()
-        .context("Failed to execute git worktree add")?;
+    let path = std::path::Path::new(worktree_path);
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow::anyhow!(
-            "git worktree add failed: {}", stderr.trim()
-        ));
-    }
-
-    Ok(())
-}
-
-/// Ensures a worktree exists at the given path.
-/// If it doesn't exist, it attempts to re-create it.
-pub fn ensure_worktree(
-    repo_path: &str,
-    worktree_path: &str,
-    branch_name: &str,
-) -> Result<()> {
-    if std::path::Path::new(worktree_path).exists() {
+    // Already a standalone repo
+    if path.join(".git").is_dir() {
         return Ok(());
     }
 
-    // First, prune any stale worktree metadata
-    let _ = Command::new("git")
-        .args(["-C", repo_path, "worktree", "prune"])
-        .output();
+    // Remove stale directory (e.g., from a previous linked worktree)
+    if path.exists() {
+        std::fs::remove_dir_all(worktree_path)
+            .with_context(|| format!("Failed to remove stale worktree path: {}", worktree_path))?;
+    }
 
-    // Try adding the worktree with -b first (assuming branch doesn't exist)
+    // Create parent directory
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create parent directory for worktree"))?;
+    }
+
+    // Clone --shared from the main repo (shares objects, no disk duplication)
     let output = Command::new("git")
-        .args([
-            "-C", repo_path,
-            "worktree", "add",
-            "-b", branch_name,
-            worktree_path,
-        ])
+        .args(["clone", "--shared", main_repo_path, worktree_path])
         .output()
-        .context("Failed to execute git worktree add")?;
+        .context("Failed to execute git clone --shared")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // If branch already exists, try adding without -b
-        if stderr.contains("already exists") {
-            let output2 = Command::new("git")
-                .args([
-                    "-C", repo_path,
-                    "worktree", "add",
-                    worktree_path,
-                    branch_name,
-                ])
-                .output()
-                .context("Failed to execute git worktree add (second attempt)")?;
+        return Err(anyhow::anyhow!("git clone --shared failed: {}", stderr.trim()));
+    }
 
-            if !output2.status.success() {
-                let stderr2 = String::from_utf8_lossy(&output2.stderr);
-                return Err(anyhow::anyhow!(
-                    "git worktree add failed (branch exists): {}", stderr2.trim()
-                ));
-            }
-        } else {
-            return Err(anyhow::anyhow!(
-                "git worktree add failed: {}", stderr.trim()
-            ));
-        }
+    // Create the worktree branch from current HEAD
+    let checkout_output = Command::new("git")
+        .args(["-C", worktree_path, "checkout", "-b", branch_name])
+        .output()
+        .context("Failed to create worktree branch")?;
+
+    if !checkout_output.status.success() {
+        let stderr = String::from_utf8_lossy(&checkout_output.stderr);
+        return Err(anyhow::anyhow!(
+            "Failed to create branch {}: {}",
+            branch_name, stderr.trim()
+        ));
+    }
+
+    // Update remote URL if we have a GitHub URL
+    if let Some(url) = remote_url.filter(|u| !u.is_empty()) {
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "remote", "set-url", "origin", url])
+            .output();
     }
 
     Ok(())
 }
 
-/// Convert a git-linked worktree into a standalone git repo by replacing the
-/// `.git` symlink file with a real `.git` directory. This ensures that any
-/// agent running in the worktree resolves `git rev-parse --show-toplevel` to
-/// the worktree path, not the main repo.
+/// Convert a git-linked worktree into a standalone git repo.
+/// Only needed for legacy workspaces created before the clone-based approach.
 pub fn ensure_worktree_as_bare_repo(
     worktree_path: &str,
-    remote_url: &str,
+    main_repo_path: &str,
+    remote_url: Option<&str>,
     branch_name: &str,
 ) -> Result<()> {
     let git_path = std::path::Path::new(worktree_path).join(".git");
@@ -129,62 +109,59 @@ pub fn ensure_worktree_as_bare_repo(
         return Err(anyhow::anyhow!("git init failed: {}", stderr.trim()));
     }
 
-    // Add remote pointing to the original repository
-    let output = Command::new("git")
-        .args(["-C", worktree_path, "remote", "add", "origin", remote_url])
-        .output()
-        .context("Failed to add remote to worktree repo")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        // If remote already exists, that's fine
-        if !stderr.contains("already exists") {
-            return Err(anyhow::anyhow!("git remote add failed: {}", stderr.trim()));
-        }
-    }
+    // Determine the best remote URL: try GitHub first, then local main repo
+    let origin_url = remote_url.filter(|u| !u.is_empty()).unwrap_or(main_repo_path);
 
-    // Fetch the branch from origin
-    let output = Command::new("git")
+    // Add remote
+    let _ = Command::new("git")
+        .args(["-C", worktree_path, "remote", "add", "origin", origin_url])
+        .output();
+
+    // Try to fetch the branch from origin (preserves commit history)
+    let fetched = Command::new("git")
         .args(["-C", worktree_path, "fetch", "origin", branch_name])
         .output()
-        .context("Failed to fetch branch into worktree repo")?;
-    if !output.status.success() {
-        // If fetch fails (e.g., branch doesn't exist on remote yet), we still
-        // have an init'd repo — working-tree files are intact as untracked
-        tracing::warn!(
-            "fetch origin {} failed (branch may not exist yet): {}",
-            branch_name,
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
+        .map(|o| o.status.success())
+        .unwrap_or(false);
 
-    // Check out the branch, creating it locally if it doesn't exist
-    let output = Command::new("git")
-        .args(["-C", worktree_path, "checkout", "--ignore-other-worktrees", branch_name])
-        .output()
-        .context("Failed to checkout branch in worktree repo")?;
-    if !output.status.success() {
-        // Branch doesn't exist locally yet — create it
+    if fetched {
+        // Branch exists on remote — check it out
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "checkout", branch_name])
+            .output();
+    } else {
+        // No remote history — create an initial commit with all files so the
+        // worktree has a proper git state (HEAD pointing at the branch)
         let _ = Command::new("git")
             .args(["-C", worktree_path, "checkout", "-b", branch_name])
+            .output();
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "add", "-A"])
+            .output();
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "commit", "--allow-empty", "-m", "Initial workspace snapshot"])
             .output();
     }
 
     Ok(())
 }
 
-pub fn remove_worktree(repo_path: &str, worktree_path: &str) -> Result<()> {
-    // Try git worktree remove (fails silently if already a standalone repo)
-    let _ = Command::new("git")
-        .args(["-C", repo_path, "worktree", "remove", "--force", worktree_path])
-        .output();
-
-    // Also clean up stale worktree metadata
-    let _ = Command::new("git")
-        .args(["-C", repo_path, "worktree", "prune"])
-        .output();
-
+pub fn remove_worktree(_repo_path: &str, worktree_path: &str) -> Result<()> {
     let _ = std::fs::remove_dir_all(worktree_path);
     Ok(())
+}
+
+/// Ensure `.forge-worktrees` is in the repo's `.gitignore` so git ignores any
+/// leftover worktree directories inside the main repo (from workspaces created
+/// before Forge moved worktrees outside the repo tree).
+pub fn gitignore_forge_worktrees(repo_path: &str) {
+    let gitignore_path = std::path::Path::new(repo_path).join(".gitignore");
+    let entry = ".forge-worktrees\n";
+
+    let content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+    if !content.lines().any(|l| l.trim() == ".forge-worktrees") {
+        let _ = std::fs::write(&gitignore_path, format!("{}{}", content, entry));
+    }
 }
 
 pub fn default_branch(repo_path: &str) -> Result<String> {

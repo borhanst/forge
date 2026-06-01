@@ -118,7 +118,9 @@ pub async fn create_workspace(
         ));
     }
 
-    let worktree_base = format!("{}/.forge-worktrees", repo.local_path);
+    // Worktrees live outside the main repo to prevent agents from
+    // accidentally resolving the main repo root by walking up directories.
+    let worktree_base = format!("{}/worktrees/{}", state.app_data_dir, repo.id);
     std::fs::create_dir_all(&worktree_base).map_err(|e| e.to_string())?;
 
     let provider_config_json = req.provider_config.as_ref().map(|cfg| {
@@ -138,13 +140,21 @@ pub async fn create_workspace(
     let repo_path     = repo.local_path.clone();
     let worktree_path = workspace.worktree_path.clone();
     let branch        = workspace.branch.clone();
+    let remote_url    = repo.github_url.clone();
 
-    tokio::task::spawn_blocking(move || {
-        git_service::add_worktree(&repo_path, &worktree_path, &branch)
+    // Create a standalone worktree repo via `git clone --shared`.
+    // This avoids git's linked worktree mechanism entirely — no stale metadata,
+    // no `.git` symlink confusion, no duplicate worktree entries.
+    tokio::task::spawn_blocking({
+        let rp = repo_path.clone();
+        let wp = worktree_path.clone();
+        let br = branch.clone();
+        let url = remote_url.clone();
+        move || git_service::clone_shared_worktree(&rp, &wp, &br, url.as_deref())
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| format!("Git worktree error: {}", e))?;
+    .map_err(|e| format!("Failed to create worktree: {}", e))?;
 
     let _ = app.emit("workspace:created", &workspace);
 
@@ -369,35 +379,45 @@ pub async fn run_agent(
     let repo_path_main = repo.local_path.clone();
     let worktree_path = ws.worktree_path.clone();
     let branch = ws.branch.clone();
-    let remote_url = repo.github_url.clone().unwrap_or_default();
+    let remote_url = repo.github_url.clone();
 
-    // Ensure worktree directory exists (as a linked worktree initially)
-    let ensure_res = tokio::task::spawn_blocking({
-        let rp = repo_path_main.clone();
-        let wp = worktree_path.clone();
-        let br = branch.clone();
-        move || git_service::ensure_worktree(&rp, &wp, &br)
-    })
-    .await;
+    // Ensure the worktree is a standalone git repo.
+    // For new workspaces: `clone_shared_worktree` creates via `git clone --shared`.
+    // For legacy linked worktrees: fall back to `ensure_worktree_as_bare_repo`.
+    {
+        let git_path = std::path::Path::new(&worktree_path).join(".git");
+        let is_linked = git_path.is_file();
 
-    if let Err(e) = ensure_res.map_err(|e| e.to_string()).and_then(|r| r.map_err(|e| e.to_string())) {
-        cleanup().await;
-        return Err(format!("Failed to ensure workspace directory: {}", e));
-    }
+        let setup_res = if is_linked {
+            // Legacy: convert linked worktree to standalone
+            tokio::task::spawn_blocking({
+                let wp = worktree_path.clone();
+                let rp = repo_path_main.clone();
+                let url = remote_url.clone();
+                let br = branch.clone();
+                move || git_service::ensure_worktree_as_bare_repo(&wp, &rp, url.as_deref(), &br)
+            })
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())
+        } else {
+            // New path or already standalone: use clone-based approach
+            tokio::task::spawn_blocking({
+                let rp = repo_path_main.clone();
+                let wp = worktree_path.clone();
+                let br = branch.clone();
+                let url = remote_url.clone();
+                move || git_service::clone_shared_worktree(&rp, &wp, &br, url.as_deref())
+            })
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())
+        };
 
-    // Convert the linked worktree into a standalone git repo so agents
-    // resolve the project root to the worktree, not the main repo.
-    let convert_res = tokio::task::spawn_blocking({
-        let wp = worktree_path.clone();
-        let url = remote_url.clone();
-        let br = branch.clone();
-        move || git_service::ensure_worktree_as_bare_repo(&wp, &url, &br)
-    })
-    .await;
-
-    if let Err(e) = convert_res.map_err(|e| e.to_string()).and_then(|r| r.map_err(|e| e.to_string())) {
-        cleanup().await;
-        return Err(format!("Failed to setup worktree repository: {}", e));
+        if let Err(e) = setup_res {
+            cleanup().await;
+            return Err(format!("Failed to setup worktree: {}", e));
+        }
     }
 
     // Check that the provider's CLI is available (using resolved shell PATH)

@@ -22,10 +22,14 @@ pub async fn add_repo_local(
     state: State<'_, AppState>,
     req: AddRepoByPathRequest,
 ) -> Result<Repository, String> {
-    git_service::open_repo(&req.local_path).map_err(|e| e.to_string())?;
+    let local_path = req.local_path.clone();
+    git_service::open_repo(&local_path).map_err(|e| e.to_string())?;
+
+    // Prevent old-style worktree dirs from being tracked by git
+    git_service::gitignore_forge_worktrees(&local_path);
 
     let name = req.name.unwrap_or_else(|| {
-        std::path::Path::new(&req.local_path)
+        std::path::Path::new(&local_path)
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
@@ -37,7 +41,7 @@ pub async fn add_repo_local(
 
     sqlx::query!(
         "INSERT INTO repositories (id, name, local_path, created_at) VALUES (?, ?, ?, ?)",
-        id, name, req.local_path, now
+        id, name, local_path, now
     )
     .execute(&state.db)
     .await
@@ -72,6 +76,8 @@ pub async fn add_repo_clone(
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
 
+    // Prevent old-style worktree dirs from being tracked by git
+    git_service::gitignore_forge_worktrees(&local_path);
     let id  = Uuid::new_v4().to_string();
     let now = Utc::now().naive_utc();
 

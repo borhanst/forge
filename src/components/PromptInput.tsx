@@ -59,9 +59,12 @@ export function PromptInput({ workspaceId }: Props) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRun()
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleRun()
+            }
           }}
-          placeholder="Describe the task for the agent… (⌘Enter to run)"
+          placeholder="Describe the task for the agent… (Enter to run)"
           disabled={isRunning}
           rows={3}
           style={{
@@ -123,7 +126,7 @@ export function PromptInput({ workspaceId }: Props) {
       <p style={{ fontSize: 11, color: '#334155', margin: 0 }}>
         {isRunning
           ? '⟳ Agent running…'
-          : 'Runs in the worktree directory. ⌘Enter to submit.'}
+          : 'Runs in the worktree directory. Enter to submit, Shift+Enter for newline.'}
       </p>
     </div>
   )

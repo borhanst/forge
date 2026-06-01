@@ -149,7 +149,7 @@ export default function Sidebar() {
           </div>
         )}
 
-        {repositories.map(repo => {
+          {repositories.map(repo => {
           const repoWorkspaces = workspaces.filter(w => w.repo_id === repo.id)
           const expanded       = expandedRepos.has(repo.id)
 
@@ -171,10 +171,26 @@ export default function Sidebar() {
                 </span>
                 <span style={{
                   fontSize: 11, background: '#1e2235', color: '#6b7280',
-                  borderRadius: 10, padding: '1px 6px',
+                  borderRadius: 10, padding: '1px 6px', marginRight: 4,
                 }}>
                   {repoWorkspaces.length}
                 </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const name = repo.name
+                    if (!confirm(`Remove "${name}" from Forge? This does NOT delete the folder on disk.`)) return
+                    forge.removeRepo(repo.id).then(() => loadData()).catch(err => alert(String(err)))
+                  }}
+                  title={`Remove ${repo.name}`}
+                  style={{
+                    background: 'transparent', border: 'none', color: '#4b5563',
+                    cursor: 'pointer', fontSize: 13, padding: '2px 4px', lineHeight: 1,
+                    borderRadius: 4, opacity: 0.5,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.opacity = '1' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.opacity = '0.5' }}
+                >✕</button>
               </div>
 
               {expanded && (

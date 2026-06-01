@@ -191,6 +191,7 @@ pub async fn spawn_streaming(
     cmd.args(&args)
        .current_dir(&worktree_path)
        .envs(&shell_env)
+       .env("PWD", &worktree_path)
        .stdout(std::process::Stdio::piped())
        .stderr(std::process::Stdio::piped())
        .kill_on_drop(true);
