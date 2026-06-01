@@ -13,6 +13,7 @@ Forge is a [Tauri v2](https://v2.tauri.app) desktop application — a Rust-power
 | Auth | OS keychain via keyring |
 | HTTP | reqwest (with rustls) |
 | Agent providers | Claude Code, OpenAI Codex, Google Gemini |
+| Planned providers | Qwen CLI |
 
 ## Architecture
 
