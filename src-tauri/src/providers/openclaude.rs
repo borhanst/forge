@@ -1,22 +1,22 @@
 use super::{AgentProvider, ProviderInfo};
 use async_trait::async_trait;
 
-pub struct GeminiProvider;
+pub struct OpenClaudeProvider;
 
 #[async_trait]
-impl AgentProvider for GeminiProvider {
+impl AgentProvider for OpenClaudeProvider {
     fn info(&self) -> ProviderInfo {
         ProviderInfo {
-            id: "gemini",
-            display_name: "Gemini CLI",
-            cli_binary: "gemini",
-            description: "Google Gemini CLI agent",
+            id: "openclaude",
+            display_name: "OpenClaude",
+            cli_binary: "openclaude",
+            description: "Open-source Claude CLI — local Ollama or custom endpoint",
         }
     }
 
     fn build_command(&self, prompt: &str, _worktree_path: &str) -> (String, Vec<String>) {
         (
-            "gemini".to_string(),
+            "openclaude".to_string(),
             vec!["-p".to_string(), prompt.to_string()],
         )
     }
@@ -26,7 +26,7 @@ impl AgentProvider for GeminiProvider {
             "npm".to_string(),
             "install".to_string(),
             "-g".to_string(),
-            "@google/gemini-cli".to_string(),
+            "openclaude@latest".to_string(),
         ]]
     }
 }

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -36,7 +37,7 @@ pub async fn run(
     provider_id: String,
     prompt: String,
     worktree_path: String,
-    shell_path: String,
+    shell_env: HashMap<String, String>,
 ) -> Result<oneshot::Sender<()>> {
     let provider = providers::get_provider(&provider_id)
         .with_context(|| format!("Unknown provider: {}", provider_id))?;
@@ -71,7 +72,7 @@ pub async fn run(
 
     // Spawn the async task
     tokio::spawn(async move {
-        let result = run_inner(
+        let result = spawn_streaming(
             app.clone(),
             db.clone(),
             workspace_id.clone(),
@@ -79,8 +80,9 @@ pub async fn run(
             binary,
             args,
             worktree_path,
-            shell_path,
+            shell_env,
             cancel_rx,
+            "[Forge]",
         )
         .await;
 
@@ -141,7 +143,9 @@ pub async fn run(
     Ok(cancel_tx)
 }
 
-async fn run_inner(
+/// Shared spawn-and-stream logic, reused by both agent runner and provider installer.
+/// Returns the exit code on success, or an error if spawn/wait fails.
+pub async fn spawn_streaming(
     app: AppHandle,
     db: SqlitePool,
     workspace_id: String,
@@ -149,26 +153,10 @@ async fn run_inner(
     binary: String,
     args: Vec<String>,
     worktree_path: String,
-    shell_path: String,
+    shell_env: HashMap<String, String>,
     cancel_rx: oneshot::Receiver<()>,
+    log_prefix: &str,
 ) -> Result<i32> {
-    let shell = std::env::var("SHELL")
-        .unwrap_or_else(|_| "/bin/bash".to_string());
-
-    // Build a single shell command string.
-    let args_escaped = args
-        .iter()
-        .map(|a| shell_quote(a))
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    let full_cmd = if args_escaped.is_empty() {
-        binary.clone()
-    } else {
-        format!("{} {}", binary, args_escaped)
-    };
-
-    // Ensure the worktree directory exists
     let worktree_dir = std::path::Path::new(&worktree_path);
     if !worktree_dir.exists() {
         return Err(anyhow::anyhow!(
@@ -177,31 +165,47 @@ async fn run_inner(
         ));
     }
 
-    tracing::info!("Spawning via shell: {} -l -c \"{}\" in {}", shell, full_cmd, worktree_path);
+    let path_env = shell_env.get("PATH").cloned().unwrap_or_default();
+    let resolved = providers::resolve_binary_path(&binary, &path_env)
+        .ok_or_else(|| anyhow::anyhow!(
+            "{} CLI `{}` not found on PATH. Install it from the providers panel.",
+            log_prefix, binary
+        ))?;
+
+    let full_cmd = format!("{} {}", resolved, args.join(" "));
+    tracing::info!("Spawning: {} in {}", full_cmd, worktree_path);
 
     emit_line(
         &app, &db, &workspace_id, &session_id, "system",
-        &format!("[Forge] Running: {}", full_cmd),
+        &format!("{} Running: {}", log_prefix, full_cmd),
     ).await;
 
-    // Use login shell (-l) to ensure we pick up the user's full environment (nvm, path, etc.)
-    // Note: Some shells might behave differently with -l and -c. 
-    // Usually `shell -l -c "command"` works for bash/zsh.
-    let mut child = Command::new(&shell)
-        .arg("-l")
-        .arg("-c")
-        .arg(&full_cmd)
-        .current_dir(&worktree_path)
-        .env("PATH", &shell_path)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
+    let mut cmd = Command::new(&resolved);
+    cmd.args(&args)
+       .current_dir(&worktree_path)
+       .envs(&shell_env)
+       .stdout(std::process::Stdio::piped())
+       .stderr(std::process::Stdio::piped())
+       .kill_on_drop(true);
+
+    // Process group: child becomes leader of its own pgroup so we can killpg on cancel.
+    // On unix, setpgid(0,0) runs in the forked child between fork() and exec().
+    // On Windows, kill_on_drop is all we have for now.
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setpgid(0, 0);
+            Ok(())
+        });
+    }
+    // TODO Windows: wrap in JobObject with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+    let mut child = cmd.spawn()
         .with_context(|| {
             let io_err = std::io::Error::last_os_error();
             format!(
-                "Failed to spawn agent process.\nBinary: {}\nShell: {}\nArgs: -l -c \"{}\"\nWorkdir: {}\nOS Error: {}\nPATH: {}",
-                binary, shell, full_cmd, worktree_path, io_err, shell_path
+                "Failed to spawn `{}`.\nResolved path: {}\nOS Error: {}\nPATH: {}",
+                binary, resolved, io_err, path_env
             )
         })?;
 
@@ -214,22 +218,33 @@ async fn run_inner(
 
     loop {
         tokio::select! {
-            // Cancel signal from stop_agent command
             _ = &mut cancel_rx => {
-                let _ = child.kill().await;
+                // Kill the entire process group on cancel
+                #[cfg(unix)]
+                {
+                    if let Some(pid) = child.id() {
+                        let _ = nix::sys::signal::killpg(
+                            nix::unistd::Pid::from_raw(pid as i32),
+                            nix::sys::signal::Signal::SIGKILL,
+                        );
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    let _ = child.kill().await;
+                }
                 emit_line(&app, &db, &workspace_id, &session_id, "system",
-                    "[Forge] Agent stopped by user.").await;
+                    &format!("{} Stopped by user.", log_prefix)).await;
                 return Ok(-1);
             }
 
-            // stdout line
             line = stdout_lines.next_line() => {
                 match line {
                     Ok(Some(content)) => {
                         emit_line(&app, &db, &workspace_id, &session_id,
                             "stdout", &content).await;
                     }
-                    Ok(None) => break,   // EOF — process finished
+                    Ok(None) => break,
                     Err(e) => {
                         tracing::warn!("stdout read error: {}", e);
                         break;
@@ -237,7 +252,6 @@ async fn run_inner(
                 }
             }
 
-            // stderr line
             line = stderr_lines.next_line() => {
                 match line {
                     Ok(Some(content)) => {
@@ -263,14 +277,14 @@ async fn run_inner(
 
     emit_line(
         &app, &db, &workspace_id, &session_id, "system",
-        &format!("[Forge] Process exited with code {}", code),
+        &format!("{} Process exited with code {}", log_prefix, code),
     ).await;
 
     Ok(code)
 }
 
 /// Emit a line to the frontend and persist it to the DB.
-async fn emit_line(
+pub async fn emit_line(
     app: &AppHandle,
     db: &SqlitePool,
     workspace_id: &str,
@@ -292,11 +306,4 @@ async fn emit_line(
     )
     .execute(db)
     .await;
-}
-
-/// Safely single-quote a shell argument.
-/// Wraps in single quotes and escapes any single quotes inside the value.
-/// e.g.  it's fine  →  'it'"'"'s fine'
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
 }

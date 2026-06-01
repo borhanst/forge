@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { forge, forgeEvents } from '../lib/tauri'
 import { useForgeStore } from '../store'
-import type { Workspace } from '../lib/tauri'
+import type { Workspace, ProviderInfo } from '../lib/tauri'
 import AddRepoModal from './AddRepoModal'
+import InstallModal from './InstallModal'
 
 export default function Sidebar() {
   const {
@@ -14,6 +15,7 @@ export default function Sidebar() {
 
   const [showAddRepo, setShowAddRepo]     = useState(false)
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set())
+  const [updateProviderWsId, setUpdateProviderWsId] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
@@ -74,6 +76,18 @@ export default function Sidebar() {
       await forge.archiveWorkspace(wsId)
     } catch (err) {
       console.error('Failed to archive workspace:', err)
+      return
+    }
+    await loadData()
+  }
+
+  const handleDelete = async (wsId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('Delete this workspace permanently?')) return
+    try {
+      await forge.deleteWorkspace(wsId)
+    } catch (err) {
+      console.error('Failed to delete workspace:', err)
       return
     }
     await loadData()
@@ -152,6 +166,8 @@ export default function Sidebar() {
                       active={activeWorkspaceId === ws.id}
                       onSelect={() => { setActiveWorkspace(ws.id); setActiveRepo(repo.id) }}
                       onArchive={(e) => handleArchive(ws.id, e)}
+                      onDelete={(e) => handleDelete(ws.id, e)}
+                      onUpdateProvider={(wsId) => setUpdateProviderWsId(wsId)}
                     />
                   ))}
 
@@ -172,18 +188,29 @@ export default function Sidebar() {
           onAdded={loadData}
         />
       )}
+
+      {updateProviderWsId && (
+        <UpdateProviderModal
+          workspaceId={updateProviderWsId}
+          onClose={() => setUpdateProviderWsId(null)}
+          onUpdated={loadData}
+        />
+      )}
     </aside>
   )
 }
 
 function WorkspaceItem({
-  workspace, active, onSelect, onArchive,
+  workspace, active, onSelect, onArchive, onDelete, onUpdateProvider,
 }: {
   workspace: Workspace
   active: boolean
   onSelect: () => void
   onArchive: (e: React.MouseEvent) => void
+  onDelete: (e: React.MouseEvent) => void
+  onUpdateProvider: (wsId: string) => void
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const STATUS_COLOR: Record<string, string> = {
     idle: '#6b7280', running: '#f59e0b', done: '#10b981', error: '#ef4444',
   }
@@ -193,7 +220,7 @@ function WorkspaceItem({
       onClick={onSelect}
       style={{
         padding: '6px 14px 6px 30px', cursor: 'pointer', display: 'flex',
-        alignItems: 'center', gap: 8,
+        alignItems: 'center', gap: 8, position: 'relative',
         background: active ? '#1e3a5f' : 'transparent',
         color: active ? '#93c5fd' : '#9ca3af',
         fontSize: 12,
@@ -210,15 +237,63 @@ function WorkspaceItem({
       <span style={{ fontSize: 10, color: '#4b5563', flexShrink: 0 }}>
         {workspace.provider}
       </span>
-      <button
-        onClick={onArchive}
-        title="Archive"
-        style={{
-          background: 'transparent', border: 'none', color: '#4b5563',
-          cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1,
-        }}
-      >⋯</button>
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen) }}
+          title="Options"
+          style={{
+            background: menuOpen ? '#1e293b' : 'transparent', border: 'none', color: '#4b5563',
+            cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1, borderRadius: 4,
+          }}
+        >⋯</button>
+
+        {menuOpen && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }}
+            />
+            <div style={{
+              position: 'absolute', right: 0, top: '100%', zIndex: 100,
+              background: '#1a1c24', border: '1px solid #334155', borderRadius: 6,
+              minWidth: 150, padding: '4px 0', boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+              <MenuItem
+                label="Update Provider"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onUpdateProvider(workspace.id) }}
+              />
+              <MenuItem
+                label="Archive"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e) }}
+              />
+              <div style={{ height: 1, background: '#334155', margin: '4px 0' }} />
+              <MenuItem
+                label="Delete"
+                color="#ef4444"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(e) }}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
+  )
+}
+
+function MenuItem({ label, color, onClick }: { label: string; color?: string; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'block', width: '100%', textAlign: 'left', padding: '7px 14px',
+        background: 'transparent', border: 'none', cursor: 'pointer',
+        color: color || '#d1d5db', fontSize: 12, fontFamily: 'Inter, sans-serif',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = '#2563eb')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -230,7 +305,8 @@ function NewWorkspaceRow({
 }) {
   const [open, setOpen]         = useState(false)
   const [provider, setProvider] = useState('claude')
-  const { providers }           = useForgeStore()
+  const [installProvider, setInstallProvider] = useState<ProviderInfo | null>(null)
+  const { providers, setProviders } = useForgeStore()
 
   if (!open) {
     return (
@@ -247,8 +323,10 @@ function NewWorkspaceRow({
     )
   }
 
+  const selectedProvider = providers.find(p => p.id === provider)
+
   return (
-    <div style={{ padding: '6px 14px 6px 30px', display: 'flex', gap: 4 }}>
+    <div style={{ padding: '6px 14px 6px 30px', display: 'flex', gap: 4, alignItems: 'center' }}>
       <select
         value={provider}
         onChange={e => setProvider(e.target.value)}
@@ -263,6 +341,18 @@ function NewWorkspaceRow({
           </option>
         ))}
       </select>
+      {selectedProvider && !selectedProvider.available && (
+        <button
+          onClick={() => setInstallProvider(selectedProvider)}
+          style={{
+            background: '#2563eb', border: 'none', color: '#fff',
+            borderRadius: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Install
+        </button>
+      )}
       <button
         onClick={() => { onCreate(repoId, provider); setOpen(false) }}
         style={{
@@ -277,6 +367,129 @@ function NewWorkspaceRow({
           borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer',
         }}
       >✕</button>
+
+      {installProvider && (
+        <InstallModal
+          provider={installProvider}
+          onClose={() => setInstallProvider(null)}
+          onSuccess={() => {
+            forge.listProviders().then(setProviders)
+            setInstallProvider(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function UpdateProviderModal({
+  workspaceId, onClose, onUpdated,
+}: {
+  workspaceId: string
+  onClose: () => void
+  onUpdated: () => void
+}) {
+  const { workspaces, providers, setProviders, setWorkspaces } = useForgeStore()
+  const ws = workspaces.find(w => w.id === workspaceId)
+  const [provider, setProvider] = useState(ws?.provider || 'claude')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    forge.listProviders().then(setProviders).catch(() => {})
+  }, [])
+
+  const handleUpdate = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      await forge.updateWorkspaceProvider(workspaceId, provider)
+      const updated = workspaces.map(w => w.id === workspaceId ? { ...w, provider } : w)
+      setWorkspaces(updated)
+      onUpdated()
+      onClose()
+    } catch (e: any) {
+      setError(String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selectedProvider = providers.find(p => p.id === provider)
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: '#1a1c24', border: '1px solid #334155',
+        borderRadius: 10, padding: '24px 28px', width: 380,
+        color: '#e2e8f0', fontFamily: 'Inter, sans-serif',
+      }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
+          Update Provider
+        </h2>
+        <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 8 }}>
+          Change the coding agent for <strong>{ws?.city_name || 'this workspace'}</strong>.
+        </p>
+
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 16 }}>
+          <select
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            style={{
+              flex: 1, background: '#1e293b', border: '1px solid #334155',
+              color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+              outline: 'none',
+            }}
+          >
+            {providers.map(p => (
+              <option key={p.id} value={p.id} disabled={!p.available}>
+                {p.display_name} {!p.available && '(not installed)'}
+              </option>
+            ))}
+          </select>
+          {selectedProvider && !selectedProvider.available && (
+            <InstallModal
+              provider={selectedProvider}
+              onClose={() => {}}
+              onSuccess={() => forge.listProviders().then(setProviders)}
+            />
+          )}
+        </div>
+
+        {error && (
+          <p style={{ color: '#ef4444', fontSize: 12, marginTop: 10 }}>{error}</p>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            style={{
+              background: 'transparent', border: '1px solid #374151',
+              color: '#94a3b8', borderRadius: 6, padding: '7px 16px',
+              fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleUpdate}
+            disabled={loading || provider === ws?.provider}
+            style={{
+              background: provider === ws?.provider ? '#334155' : '#2563eb',
+              border: 'none', color: '#fff', borderRadius: 6,
+              padding: '7px 18px', fontSize: 13,
+              cursor: provider === ws?.provider ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? 'Updating...' : 'Update'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

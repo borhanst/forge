@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import { MainPanel } from './components/MainPanel'
 import { useAgentEvents } from './hooks/useAgentEvents'
-import { forge } from './lib/tauri'
+import { forge, forgeEvents } from './lib/tauri'
 import { useForgeStore } from './store'
 import './App.css'
 
@@ -29,6 +29,14 @@ export default function App() {
     forge.listRunningAgents().then((agents) => {
       agents.forEach((a) => setRunningAgent(a.workspace_id, a.session_id))
     }).catch(e => console.error('[App] listRunningAgents failed:', e))
+  }, [])
+
+  // Re-fetch providers when install completes
+  useEffect(() => {
+    const unlisten = forgeEvents.onProvidersRefresh(() => {
+      forge.listProviders().then(setProviders).catch(e => console.error('[App] refreshProviders failed:', e))
+    })
+    return () => { unlisten.then(fn => fn()) }
   }, [])
 
   return (

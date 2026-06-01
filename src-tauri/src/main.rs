@@ -54,6 +54,7 @@ async fn main() {
             commands::archive_workspace,
             commands::restore_workspace,
             commands::delete_workspace,
+            commands::update_workspace_provider,
 
             commands::run_agent,
             commands::stop_agent,
@@ -62,6 +63,7 @@ async fn main() {
             commands::list_running_agents,
             commands::get_resolved_path,
             commands::debug_path,
+            commands::install_provider,
 
             commands::get_git_status,
             commands::get_diff,

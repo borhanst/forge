@@ -4,6 +4,8 @@ use crate::db::schema::{Workspace, Repository};
 use crate::services::{git_service, workspace_service};
 use serde::{Deserialize, Serialize};
 use crate::agent_runner;
+use chrono::Utc;
+use tokio::io::AsyncBufReadExt;
 
 #[derive(Deserialize)]
 pub struct CreateWorkspaceRequest {
@@ -24,9 +26,10 @@ pub fn ping() -> String {
 
 #[tauri::command]
 pub async fn list_providers(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
 ) -> Result<Vec<crate::commands::workspace::ProviderInfoDto>, String> {
     use crate::providers;
+    let shell_path = state.shell_path().clone();
     let providers = providers::all_providers()
         .into_iter()
         .map(|p| {
@@ -36,7 +39,7 @@ pub async fn list_providers(
                 display_name: info.display_name.to_string(),
                 cli_binary: info.cli_binary.to_string(),
                 description: info.description.to_string(),
-                available: p.is_available(),
+                available: p.is_available_in_shell(&shell_path),
             }
         })
         .collect();
@@ -107,7 +110,7 @@ pub async fn create_workspace(
 
     let provider = crate::providers::get_provider(&req.provider)
         .ok_or_else(|| format!("Unknown provider: {}", req.provider))?;
-    if !provider.is_available_in_shell(&state.shell_path) {
+    if !provider.is_available_in_shell(&state.shell_path()) {
         return Err(format!(
             "'{}' CLI not found. Install it or choose another provider.",
             provider.info().cli_binary
@@ -239,6 +242,38 @@ pub async fn restore_workspace(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn update_workspace_provider(
+    app:          AppHandle,
+    state:        State<'_, AppState>,
+    workspace_id: String,
+    provider:     String,
+) -> Result<(), String> {
+    // 1. Verify provider exists
+    let p = crate::providers::get_provider(&provider)
+        .ok_or_else(|| format!("Unknown provider: {}", provider))?;
+    
+    // 2. Verify CLI is available
+    if !p.is_available_in_shell(&state.shell_path()) {
+        return Err(format!(
+            "'{}' CLI not found. Install it before switching.",
+            p.info().cli_binary
+        ));
+    }
+
+    // 3. Update DB
+    sqlx::query!(
+        "UPDATE workspaces SET provider = ? WHERE id = ?",
+        provider, workspace_id
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let _ = app.emit("workspace:updated", workspace_id);
+    Ok(())
+}
+
 // ── Agent commands ─────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -329,7 +364,7 @@ pub async fn run_agent(
         }
     };
 
-    if !provider.is_available_in_shell(&state.shell_path) {
+    if !provider.is_available_in_shell(&state.shell_path()) {
         cleanup().await;
         return Err(format!(
             "'{}' CLI not found. Install it or choose another provider.",
@@ -347,7 +382,7 @@ pub async fn run_agent(
         ws.provider.clone(),
         request.prompt,
         ws.worktree_path.clone(),
-        state.shell_path.clone(),
+        state.shell_env.clone(),
     )
     .await;
 
@@ -387,18 +422,18 @@ pub async fn stop_agent(
 /// Returns the resolved shell PATH
 #[tauri::command]
 pub fn get_resolved_path(state: State<'_, AppState>) -> String {
-    state.shell_path.clone()
+    state.shell_path().clone()
 }
 
 /// Debug command: shows shell_path, system PATH, and which output for all agents
 #[tauri::command]
 pub fn debug_path(state: State<'_, AppState>) -> serde_json::Value {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-    let binaries = ["gemini", "claude", "codex"];
+    let binaries = ["gemini", "claude", "codex", "opencode", "openclaude"];
     let which_results: serde_json::Map<String, serde_json::Value> = binaries.iter().map(|bin| {
         let result = std::process::Command::new(&shell)
             .args(["-c", &format!("which {}", bin)])
-            .env("PATH", &state.shell_path)
+            .env("PATH", &state.shell_path())
             .output();
         let output = match result {
             Ok(o) => {
@@ -421,7 +456,7 @@ pub fn debug_path(state: State<'_, AppState>) -> serde_json::Value {
 
     serde_json::json!({
         "shell": shell,
-        "shell_path": state.shell_path,
+        "shell_path": state.shell_path(),
         "system_path": std::env::var("PATH").unwrap_or_default(),
         "binaries": which_results,
     })
@@ -470,4 +505,179 @@ pub async fn list_running_agents(
         session_id: a.session_id.clone(),
         provider_id: a.provider_id.clone(),
     }).collect())
+}
+
+// ── Provider install commands ──────────────────────────────────────────────────
+
+fn needs_sudo_for_npm(env: &std::collections::HashMap<String, String>) -> bool {
+    let out = std::process::Command::new("npm")
+        .args(["config", "get", "prefix"])
+        .envs(env)
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            let prefix = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            prefix == "/usr/local"
+                || prefix == "/usr"
+                || prefix.starts_with("/opt/homebrew")
+        }
+        _ => false,
+    }
+}
+
+/// Install a provider's CLI. Tries each install option in order, stops at first success.
+/// Streams output to the frontend with an [Install] prefix.
+#[tauri::command]
+pub async fn install_provider(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    provider_id: String,
+) -> Result<(), String> {
+    use crate::providers;
+
+    let provider = providers::get_provider(&provider_id)
+        .ok_or_else(|| format!("Unknown provider: {}", provider_id))?;
+
+    let options = provider.install_options();
+    if options.is_empty() {
+        return Err(format!(
+            "{} has no automated install options.",
+            provider.info().display_name
+        ));
+    }
+
+    let needs_sudo = needs_sudo_for_npm(&state.shell_env);
+
+    // Use a synthetic workspace/session so install output streams into the terminal pane
+    let workspace_id = format!("__install_{}", provider_id);
+    let session_id = format!(
+        "__install_{}_{}",
+        provider_id,
+        Utc::now().timestamp()
+    );
+
+    let mut last_err: Option<String> = None;
+    for (i, argv) in options.iter().enumerate() {
+        let full_argv: Vec<String> = if needs_sudo {
+            std::iter::once("sudo".to_string())
+                .chain(std::iter::once("-n".to_string()))
+                .chain(argv.iter().cloned())
+                .collect()
+        } else {
+            argv.clone()
+        };
+
+        crate::agent_runner::emit_line(
+            &app, &state.db, &workspace_id, &session_id, "system",
+            &format!(
+                "[Install] Attempt {}/{}: {}",
+                i + 1,
+                options.len(),
+                full_argv.join(" ")
+            ),
+        ).await;
+
+        // Resolve the binary and spawn directly (cancel_rx not needed for install)
+        let path_env = state.shell_env.get("PATH").cloned().unwrap_or_default();
+        let resolved = providers::resolve_binary_path(&full_argv[0], &path_env)
+            .ok_or_else(|| format!(
+                "Could not find `{}` on PATH. Is npm installed?",
+                full_argv[0]
+            ))?;
+
+        let mut cmd = tokio::process::Command::new(&resolved);
+        cmd.args(&full_argv[1..])
+           .current_dir(".")
+           .envs(&state.shell_env)
+           .stdout(std::process::Stdio::piped())
+           .stderr(std::process::Stdio::piped())
+           .kill_on_drop(true);
+
+        #[cfg(unix)]
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setpgid(0, 0);
+                Ok(())
+            });
+        }
+
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                last_err = Some(e.to_string());
+                continue;
+            }
+        };
+
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let mut stdout_lines = tokio::io::BufReader::new(stdout).lines();
+        let mut stderr_lines = tokio::io::BufReader::new(stderr).lines();
+
+        let _code = loop {
+            tokio::select! {
+                line = stdout_lines.next_line() => {
+                    match line {
+                        Ok(Some(content)) => {
+                            crate::agent_runner::emit_line(
+                                &app, &state.db, &workspace_id, &session_id,
+                                "stdout", &content,
+                            ).await;
+                        }
+                        Ok(None) => break,
+                        Err(_) => break,
+                    }
+                }
+                line = stderr_lines.next_line() => {
+                    match line {
+                        Ok(Some(content)) => {
+                            crate::agent_runner::emit_line(
+                                &app, &state.db, &workspace_id, &session_id,
+                                "stderr", &content,
+                            ).await;
+                        }
+                        Ok(None) => {}
+                        Err(_) => {}
+                    }
+                }
+            }
+        };
+
+        while let Ok(Some(content)) = stderr_lines.next_line().await {
+            crate::agent_runner::emit_line(
+                &app, &state.db, &workspace_id, &session_id,
+                "stderr", &content,
+            ).await;
+        }
+
+        match child.wait().await {
+            Ok(status) => {
+                let exit_code = status.code().unwrap_or(-1);
+                if exit_code == 0 {
+                    crate::agent_runner::emit_line(
+                        &app, &state.db, &workspace_id, &session_id, "system",
+                        &format!("[Install] {} installed successfully.", provider.info().display_name),
+                    ).await;
+                    let _ = app.emit("providers:refresh", ());
+                    return Ok(());
+                }
+                last_err = Some(format!("exit code {}", exit_code));
+            }
+            Err(e) => {
+                last_err = Some(e.to_string());
+            }
+        }
+    }
+
+    let hint = if needs_sudo {
+        "Sudo may be required. Try running the install command manually in your terminal."
+    } else {
+        "Make sure Node.js is installed: https://nodejs.org"
+    };
+    Err(format!(
+        "All install attempts for {} failed ({}). {}",
+        provider.info().display_name,
+        last_err.unwrap_or_default(),
+        hint
+    ))
 }

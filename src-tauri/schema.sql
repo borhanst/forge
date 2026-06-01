@@ -43,3 +43,19 @@ CREATE TABLE IF NOT EXISTS output_lines (
 CREATE INDEX IF NOT EXISTS idx_workspaces_repo_id  ON workspaces(repo_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_workspace   ON sessions(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_output_lines_session ON output_lines(session_id);
+
+CREATE TABLE IF NOT EXISTS pull_requests (
+    id           TEXT PRIMARY KEY NOT NULL,
+    workspace_id TEXT NOT NULL,
+    pr_number    INTEGER,
+    title        TEXT,
+    html_url     TEXT,
+    state        TEXT,
+    merged       INTEGER DEFAULT 0,
+    draft        INTEGER DEFAULT 0,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pull_requests_workspace ON pull_requests(workspace_id);

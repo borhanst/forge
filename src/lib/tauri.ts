@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
+export type { UnlistenFn }
+
 export interface Repository {
   id: string
   name: string
@@ -123,6 +125,9 @@ export const forge = {
   deleteWorkspace: (workspaceId: string) =>
     invoke<void>('delete_workspace', { workspaceId }),
 
+  updateWorkspaceProvider: (workspaceId: string, provider: string) =>
+    invoke<void>('update_workspace_provider', { workspaceId, provider }),
+
   listArchivedWorkspaces: (repoId?: string) =>
     invoke<Workspace[]>('list_archived_workspaces', { repoId }),
 
@@ -175,6 +180,9 @@ export const forge = {
 
   getPrStatus: (workspaceId: string) =>
     invoke<PullRequestRecord | null>('get_pr_status', { workspaceId }),
+
+  installProvider: (providerId: string) =>
+    invoke<void>('install_provider', { providerId }),
 }
 
 export const forgeEvents = {
@@ -189,4 +197,7 @@ export const forgeEvents = {
 
   onWorkspaceCreated: (cb: (e: Workspace) => void): Promise<UnlistenFn> =>
     listen<Workspace>('workspace:created', (e) => cb(e.payload)),
+
+  onProvidersRefresh: (cb: () => void): Promise<UnlistenFn> =>
+    listen('providers:refresh', () => cb()),
 }

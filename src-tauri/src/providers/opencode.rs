@@ -1,23 +1,23 @@
 use super::{AgentProvider, ProviderInfo};
 use async_trait::async_trait;
 
-pub struct GeminiProvider;
+pub struct OpenCodeProvider;
 
 #[async_trait]
-impl AgentProvider for GeminiProvider {
+impl AgentProvider for OpenCodeProvider {
     fn info(&self) -> ProviderInfo {
         ProviderInfo {
-            id: "gemini",
-            display_name: "Gemini CLI",
-            cli_binary: "gemini",
-            description: "Google Gemini CLI agent",
+            id: "opencode",
+            display_name: "OpenCode",
+            cli_binary: "opencode",
+            description: "Open-source multi-model coding agent (local or cloud)",
         }
     }
 
     fn build_command(&self, prompt: &str, _worktree_path: &str) -> (String, Vec<String>) {
         (
-            "gemini".to_string(),
-            vec!["-p".to_string(), prompt.to_string()],
+            "opencode".to_string(),
+            vec!["run".to_string(), prompt.to_string()],
         )
     }
 
@@ -26,7 +26,7 @@ impl AgentProvider for GeminiProvider {
             "npm".to_string(),
             "install".to_string(),
             "-g".to_string(),
-            "@google/gemini-cli".to_string(),
+            "opencode-ai@latest".to_string(),
         ]]
     }
 }

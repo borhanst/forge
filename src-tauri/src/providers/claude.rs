@@ -20,4 +20,20 @@ impl AgentProvider for ClaudeProvider {
             vec!["--print".to_string(), prompt.to_string()],
         )
     }
+
+    fn install_options(&self) -> Vec<Vec<String>> {
+        let mut opts = vec![vec![
+            "npm".to_string(),
+            "install".to_string(),
+            "-g".to_string(),
+            "@anthropic-ai/claude-code".to_string(),
+        ]];
+        #[cfg(not(target_os = "windows"))]
+        opts.push(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            "curl -fsSL https://claude.ai/install.sh | bash".to_string(),
+        ]);
+        opts
+    }
 }

@@ -18,7 +18,6 @@ export function MainPanel() {
     workspaces,
     repositories,
     activeWorkspaceId,
-    appendAgentOutput,
     setAgentOutput,
     runningAgents,
   } = useForgeStore()

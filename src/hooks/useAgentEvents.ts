@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { forgeEvents, type AgentOutputEvent, type AgentStatusEvent, type UnlistenFn } from '../lib/tauri'
+import { forgeEvents, type UnlistenFn } from '../lib/tauri'
 import { useForgeStore } from '../store'
 
 export function useAgentEvents() {
