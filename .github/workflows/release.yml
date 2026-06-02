@@ -10,6 +10,8 @@ jobs:
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.platform }}
+    env:
+      SQLX_OFFLINE: true
     steps:
       - uses: actions/checkout@v4
 
