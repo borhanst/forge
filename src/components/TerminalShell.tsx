@@ -95,7 +95,6 @@ export function TerminalShell({ workspaceId }: Props) {
         if (info && info.scrollback_b64) {
           const bytes = base64ToBytes(info.scrollback_b64)
           term.write(bytes)
-          term.write('\r\n\x1b[33m[— reconnected to existing session —]\x1b[0m\r\n')
         }
       } catch (e) {
         console.warn('terminal attach replay failed', e)

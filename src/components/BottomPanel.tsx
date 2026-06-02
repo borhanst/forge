@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Terminal } from './Terminal'
 import { TerminalShell } from './TerminalShell'
+import { forge } from '../lib/tauri'
 
 interface Props {
   workspaceId: string
@@ -10,6 +11,15 @@ type Tab = 'agent' | 'shell'
 
 export function BottomPanel({ workspaceId }: Props) {
   const [tab, setTab] = useState<Tab>('agent')
+
+  useEffect(() => {
+    let cancelled = false
+    forge.terminalAttach(workspaceId).then((info) => {
+      if (cancelled) return
+      setTab(info ? 'shell' : 'agent')
+    })
+    return () => { cancelled = true }
+  }, [workspaceId])
 
   return (
     <div
