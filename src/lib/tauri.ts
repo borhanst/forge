@@ -149,6 +149,31 @@ export interface TerminalAttachInfo {
   is_running:      boolean
 }
 
+export interface GitHubUser {
+  login:      string
+  name:       string | null
+  html_url:   string
+  avatar_url: string
+}
+
+export interface AppSettings {
+  general: {
+    defaultProvider:      string
+    defaultBaseBranch:    string
+    defaultCleanup:       'archive' | 'delete' | 'keep'
+    confirmBeforeArchive: boolean
+    confirmBeforeDelete:  boolean
+    showKeyboardHints:    boolean
+  }
+  theme: {
+    accent:           'ember' | 'brass' | 'cobalt' | 'patina' | 'rust'
+    density:          'compact' | 'cozy' | 'spacious'
+    terminalFontSize: number
+  }
+  agents: { defaultProvider: string }
+  github: { hasToken: boolean }
+}
+
 export const forge = {
   ping: () =>
     invoke<string>('ping'),
@@ -255,6 +280,9 @@ export const forge = {
   deleteGithubToken: () =>
     invoke<void>('delete_github_token'),
 
+  getGithubUser: () =>
+    invoke<GitHubUser | null>('get_github_user'),
+
   createPr: (
     workspaceId: string,
     title: string,
@@ -289,6 +317,12 @@ export const forge = {
 
   terminalAttach: (workspaceId: string) =>
     invoke<TerminalAttachInfo | null>('terminal_attach', { workspaceId }),
+
+  getAppSettings: () =>
+    invoke<AppSettings>('get_app_settings'),
+
+  updateAppSettings: (settings: AppSettings) =>
+    invoke<void>('update_app_settings', { settings }),
 }
 
 export const forgeEvents = {

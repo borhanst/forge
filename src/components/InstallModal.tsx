@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { forge } from '../lib/tauri'
 import type { ProviderInfo } from '../lib/tauri'
+import { colors, fonts, displayItalic, labelStyle } from '../theme'
 
 export default function InstallModal({
   provider,
@@ -12,8 +13,8 @@ export default function InstallModal({
   onSuccess: () => void
 }) {
   const [loading, setLoading] = useState(false)
-  const [error, setError]       = useState('')
-  const [done, setDone]         = useState(false)
+  const [error, setError]     = useState('')
+  const [done, setDone]       = useState(false)
 
   const installLabel = (() => {
     switch (provider.id) {
@@ -39,82 +40,161 @@ export default function InstallModal({
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000,
-    }}>
-      <div style={{
-        background: '#1a1c24', border: '1px solid #334155',
-        borderRadius: 10, padding: '24px 28px', width: 420,
-        color: '#e2e8f0', fontFamily: 'Inter, sans-serif',
-      }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
-          {done ? 'Installed' : `Install ${provider.display_name}`}
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        animation: 'forge-fade-in 0.18s ease',
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="forge-rise"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.iron,
+          border: `1px solid ${colors.steelHi}`,
+          borderRadius: 10,
+          padding: 32,
+          width: 460,
+          color: colors.ivory,
+          fontFamily: fonts.body,
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 0, left: 28, right: 28, height: 1,
+            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
+            opacity: 0.5,
+          }}
+        />
+
+        <div style={labelStyle}>
+          {done ? 'Mounted' : 'Provision'}
+        </div>
+        <h2
+          style={{
+            ...displayItalic,
+            margin: '4px 0 4px',
+            fontSize: 26,
+            color: colors.cream,
+            letterSpacing: '-0.015em',
+          }}
+        >
+          {done ? `${provider.display_name} is installed` : `Install ${provider.display_name}`}
         </h2>
 
         {!done && (
           <>
-            <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>
-              This will run the following command in your terminal:
+            <p style={{ color: colors.smoke, fontSize: 13, marginTop: 8, lineHeight: 1.55 }}>
+              This will run the following command in your shell:
             </p>
-            <pre style={{
-              background: '#0d0e11', border: '1px solid #334155',
-              borderRadius: 6, padding: '10px 14px', marginTop: 12,
-              fontSize: 12, color: '#a5b4fc', fontFamily: 'JetBrains Mono, monospace',
-              overflowX: 'auto', whiteSpace: 'pre',
-            }}>
-              {installLabel}
+            <pre
+              style={{
+                background: colors.soot,
+                border: `1px solid ${colors.steel}`,
+                borderRadius: 6,
+                padding: '12px 16px',
+                marginTop: 14,
+                fontSize: 12,
+                color: colors.accent,
+                fontFamily: fonts.mono,
+                overflowX: 'auto',
+                whiteSpace: 'pre',
+                letterSpacing: '0.005em',
+              }}
+            >
+              $ {installLabel}
             </pre>
-            <p style={{ color: '#64748b', fontSize: 11, marginTop: 10 }}>
-              You need Node.js installed. Output will stream to the terminal pane.
+            <p style={{ color: colors.ash, fontSize: 11, marginTop: 12, lineHeight: 1.5 }}>
+              Requires Node.js. Output will stream into the Agent pane.
             </p>
           </>
         )}
 
         {done && (
-          <p style={{ color: '#10b981', fontSize: 13, marginTop: 12 }}>
-            {provider.display_name} installed successfully.
+          <p
+            style={{
+              color: colors.patina,
+              fontSize: 13,
+              marginTop: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: colors.patina,
+                boxShadow: `0 0 6px ${colors.patina}`,
+              }}
+            />
+            Smith ready for assignment.
           </p>
         )}
 
         {error && (
-          <p style={{ color: '#ef4444', fontSize: 12, marginTop: 10, lineHeight: 1.4 }}>
+          <p
+            style={{
+              color: colors.rust,
+              fontSize: 12,
+              marginTop: 12,
+              lineHeight: 1.45,
+              background: 'rgba(208,90,62,0.06)',
+              border: `1px solid rgba(208,90,62,0.25)`,
+              padding: '8px 10px',
+              borderRadius: 4,
+            }}
+          >
             {error}
           </p>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-          <button
-            onClick={onClose}
-            disabled={loading}
-            style={{
-              background: 'transparent', border: '1px solid #374151',
-              color: '#94a3b8', borderRadius: 6, padding: '7px 16px',
-              fontSize: 13, cursor: loading ? 'not-allowed' : 'pointer',
-            }}
-          >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 10,
+            marginTop: 24,
+          }}
+        >
+          <button className="btn-ghost" onClick={onClose} disabled={loading}>
             {done ? 'Close' : 'Cancel'}
           </button>
           {!done && (
             <button
+              className="btn-strike"
               onClick={handleInstall}
               disabled={loading}
               style={{
-                background: '#2563eb', border: 'none', color: '#fff',
-                borderRadius: 6, padding: '7px 18px', fontSize: 13,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
               }}
             >
               {loading && (
-                <span style={{
-                  width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)',
-                  borderTopColor: '#fff', borderRadius: '50%',
-                  animation: 'spin 0.6s linear infinite', display: 'inline-block',
-                }} />
+                <span
+                  style={{
+                    width: 12, height: 12,
+                    border: '2px solid rgba(10,8,7,0.3)',
+                    borderTopColor: colors.soot,
+                    borderRadius: '50%',
+                    animation: 'spin 0.6s linear infinite',
+                    display: 'inline-block',
+                  }}
+                />
               )}
-              {loading ? 'Installing...' : 'Install'}
+              {loading ? 'Installing…' : 'Install'}
             </button>
           )}
         </div>

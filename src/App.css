@@ -1,31 +1,387 @@
+:root {
+  color-scheme: dark;
+
+  --soot:       #0a0807;
+  --iron:       #13100c;
+  --coal:       #1c1813;
+  --ore:        #241e17;
+  --steel:      #2a241c;
+  --steel-hi:   #3a3225;
+
+  --ash:        #5a5247;
+  --smoke:      #8a8275;
+  --bone:       #c9c1b1;
+  --ivory:      #f5efe2;
+  --cream:      #faf5e9;
+
+  /* The accent system is swappable at runtime by useThemeStyle.ts.
+     --accent is the base hex; --accent-rgb is the channel triple for rgba(). */
+  --accent:      #ff6a1f;
+  --accent-deep: #c44712;
+  --accent-glow: #fb923c;
+  --accent-dim:  #7a3410;
+  --accent-rgb:  255, 106, 31;
+
+  /* Legacy aliases (kept for a transitional phase) */
+  --ember:      var(--accent);
+  --ember-deep: var(--accent-deep);
+  --ember-glow: var(--accent-glow);
+  --ember-dim:  var(--accent-dim);
+
+  --brass:      #d4a015;
+
+  --patina:     #5db48c;
+  --rust:       #d05a3e;
+
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body:    "Inter Tight", -apple-system, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  /* Density + terminal size. Overridden at runtime by useThemeStyle.ts. */
+  --ui-scale:  1.0;
+  --term-size: 13px;
+}
+
+/* Base body type scales with density. Most inline padding is in px and
+   doesn't track density in v1 — that requires a larger layout refactor. */
+body {
+  font-size: calc(14px * var(--ui-scale));
+  line-height: 1.5;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-body {
-  background: #0d0e11;
-  color: #d1d5db;
-  font-family: 'Inter', sans-serif;
-  overflow: hidden;
-  user-select: none;
+html, body, #root {
+  height: 100%;
 }
 
-.terminal-output {
+body {
+  background: var(--soot);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Forge floor — a barely-perceptible grain over the entire app. Pure noise via
+   SVG turbulence, masked to the bottom edge so the screen feels like it sits
+   on a workbench. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08, 0 0 0 0 0.06, 0 0 0 0 0.04, 0 0 0 0.4 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+}
+
+/* A faint forge-light leak from below — the only ambient color in the room. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: auto 0 -260px 0;
+  height: 480px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse 70% 50% at 50% 100%, rgba(var(--accent-rgb),0.07), transparent 70%);
+}
+
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+.terminal-output, code, pre, input, textarea {
   user-select: text;
 }
 
+::selection {
+  background: rgba(var(--accent-rgb),0.32);
+  color: var(--cream);
+}
+
+/* Rivet-style scrollbars — narrow, recessed, with an ember tint on hover. */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 3px;
+  background: var(--steel);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: var(--steel-hi);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* xterm bleed — keep the terminal pane edge-to-edge but inset its inner box. */
+.xterm .xterm-viewport {
+  background: transparent !important;
+}
+
+/* === Animations === */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ember-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.55), 0 0 12px 0 rgba(var(--accent-rgb), 0.0); }
+  50%      { box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.0),  0 0 14px 2px rgba(var(--accent-rgb), 0.5); }
+}
+
+@keyframes ember-glow-soft {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes forge-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes forge-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes anvil-strike {
+  0%   { transform: translateY(0) rotate(0deg); }
+  35%  { transform: translateY(-2px) rotate(-3deg); }
+  60%  { transform: translateY(1px) rotate(2deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* Utility classes used by the components below. Kept tiny on purpose so
+   most styling stays co-located with the React inline styles. */
+.forge-stagger > * { animation: forge-rise 0.5s ease both; }
+.forge-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.forge-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.forge-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.forge-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.forge-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.forge-stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.forge-stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.forge-stagger > *:nth-child(8) { animation-delay: 0.30s; }
+
+.forge-rise { animation: forge-rise 0.4s ease both; }
+.forge-fade { animation: forge-fade-in 0.3s ease both; }
+
+.ember-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb),0.25), 0 0 10px 1px rgba(var(--accent-rgb),0.5);
+  animation: ember-glow-soft 1.6s ease-in-out infinite;
+}
+
+.ember-pulse {
+  animation: ember-pulse 1.8s ease-in-out infinite;
+}
+
+.brushed {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.012) 25%,
+    transparent 50%,
+    rgba(255,255,255,0.012) 75%,
+    transparent 100%
+  );
+  background-size: 6px 100%;
+}
+
+/* Decorated separator — a thin etched line with an ember pip on the left. */
+.seam {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--steel) 12%, var(--steel) 88%, transparent);
+}
+.seam::before {
+  content: '';
+  position: absolute;
+  left: 14px; top: 50%;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: var(--ember);
+  transform: translateY(-50%);
+  box-shadow: 0 0 6px rgba(var(--accent-rgb),0.6);
+}
+
+/* Refined form control resets — inputs across the app share these. */
+.forge-input,
+.forge-input:focus,
+.forge-textarea,
+.forge-textarea:focus,
+.forge-select,
+.forge-select:focus {
+  outline: none;
+}
+.forge-input,
+.forge-textarea,
+.forge-select {
+  width: 100%;
+  background: var(--soot);
+  border: 1px solid var(--steel);
+  color: var(--ivory);
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: 4px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.forge-input::placeholder,
+.forge-textarea::placeholder {
+  color: var(--ash);
+}
+.forge-input:focus,
+.forge-textarea:focus,
+.forge-select:focus {
+  border-color: var(--ember-deep);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.10);
+}
+.forge-textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* Native <select> dropdown list — by default the option list inherits OS
+   widget colors (often white). Force the foundry palette across every <select>
+   in the app, including ones styled inline. */
+select,
+select.forge-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'><path d='M3 4.5 6 7.5 9 4.5' stroke='%238a8275' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 10px;
+  padding-right: 28px;
+}
+
+select option,
+select optgroup {
+  background-color: var(--iron);
+  color: var(--ivory);
+  font-family: var(--font-body);
+}
+
+select option:disabled {
+  color: var(--ash);
+  background-color: var(--soot);
+  font-style: italic;
+}
+
+select option:checked {
+  background: linear-gradient(0deg, var(--ember-dim), var(--ember-dim)) var(--ember-dim);
+  color: var(--cream);
+  font-weight: 500;
+}
+
+/* Primary "Strike" button — the only place ember dominates a surface. */
+.btn-strike {
+  position: relative;
+  background: linear-gradient(180deg, #ff7a2e, #d84d10);
+  color: var(--soot);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb),0.7),
+    0 1px 0 rgba(255,255,255,0.25) inset,
+    0 -1px 0 rgba(0,0,0,0.3) inset,
+    0 0 24px -4px rgba(var(--accent-rgb),0.6);
+  transition: transform 0.08s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.btn-strike:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb),0.9),
+    0 1px 0 rgba(255,255,255,0.3) inset,
+    0 -1px 0 rgba(0,0,0,0.3) inset,
+    0 0 32px -2px rgba(var(--accent-rgb),0.75);
+}
+.btn-strike:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.95);
+}
+.btn-strike:disabled {
+  background: var(--coal);
+  color: var(--ash);
+  box-shadow: 0 0 0 1px var(--steel);
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--smoke);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--ivory);
+  border-color: var(--steel-hi);
+  background: var(--coal);
+}
+.btn-ghost:disabled {
+  color: var(--steel);
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--rust);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border: 1px solid rgba(208,90,62,0.35);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(208,90,62,0.10);
+  border-color: rgba(208,90,62,0.6);
+}
+
+/* Caret blink for input focus states */
+input.forge-input, textarea.forge-textarea {
+  caret-color: var(--ember);
 }

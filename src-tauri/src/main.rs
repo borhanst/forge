@@ -96,6 +96,7 @@ async fn main() {
             commands::resolve_and_finish_merge,
             commands::has_github_token,
             commands::delete_github_token,
+            commands::get_github_user,
             commands::create_pr,
             commands::get_pr_status,
 
@@ -104,6 +105,9 @@ async fn main() {
             commands::terminal_resize,
             commands::terminal_close,
             commands::terminal_attach,
+
+            commands::get_app_settings,
+            commands::update_app_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Forge");

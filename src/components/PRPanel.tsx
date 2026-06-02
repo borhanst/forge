@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { forge, type PullRequestRecord, type GitStatus } from '../lib/tauri'
 import { useForgeStore } from '../store'
+import { colors, fonts, labelStyle } from '../theme'
 
 interface Props {
   workspaceId: string
@@ -10,11 +11,11 @@ interface Props {
 
 export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props) {
   const workspaces  = useForgeStore(s => s.workspaces)
+  const openSettings = useForgeStore(s => s.openSettings)
   const ws          = workspaces.find(w => w.id === workspaceId)
 
   const [pr, setPr]               = useState<PullRequestRecord | null>(null)
   const [hasToken, setHasToken]   = useState(false)
-  const [token, setToken]         = useState('')
   const [title, setTitle]         = useState('')
   const [body, setBody]           = useState('')
   const [baseBranch, setBase]     = useState('main')
@@ -30,28 +31,13 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
     if (ws) setTitle(`feat: changes from ${ws.city_name} workspace`)
   }, [workspaceId])
 
-  const saveToken = async () => {
-    if (!token.trim()) return
-    setLoading(true)
-    try {
-      await forge.saveGithubToken(token.trim())
-      setHasToken(true)
-      setToken('')
-      setInfo('Token saved securely to keychain.')
-    } catch (e: any) {
-      setError(String(e))
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleCommitPush = async () => {
     if (!commitMsg.trim()) return
     setLoading(true)
     setError('')
     try {
       await forge.commitAndPush(workspaceId, commitMsg.trim())
-      setInfo('Committed and pushed successfully.')
+      setInfo('Committed and pushed.')
       setCommitMsg('')
       onRefreshDiff()
     } catch (e: any) {
@@ -67,7 +53,7 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
     try {
       const created = await forge.createPr(workspaceId, title, body, baseBranch, draft)
       setPr(created)
-      setInfo('Pull request created!')
+      setInfo('Pull request raised.')
     } catch (e: any) {
       setError(String(e))
     } finally {
@@ -80,119 +66,174 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
     setPr(fresh)
   }
 
-  const prStatusColor = (pr: PullRequestRecord) => {
-    if (pr.merged) return '#a78bfa'
-    if (pr.state === 'closed') return '#ef4444'
-    if (pr.draft)  return '#6b7280'
-    return '#10b981'
+  const prStatusColor = (p: PullRequestRecord) => {
+    if (p.merged) return '#a78bfa'
+    if (p.state === 'closed') return colors.rust
+    if (p.draft)  return colors.ash
+    return colors.patina
   }
 
-  const prStatusLabel = (pr: PullRequestRecord) => {
-    if (pr.merged) return 'Merged'
-    if (pr.state === 'closed') return 'Closed'
-    if (pr.draft)  return 'Draft'
+  const prStatusLabel = (p: PullRequestRecord) => {
+    if (p.merged) return 'Merged'
+    if (p.state === 'closed') return 'Closed'
+    if (p.draft)  return 'Draft'
     return 'Open'
   }
 
   return (
-    <div style={{
-      flex: 1, overflowY: 'auto', padding: '16px',
-      display: 'flex', flexDirection: 'column', gap: 20,
-      fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#d1d5db',
-    }}>
-
+    <div
+      className="forge-stagger"
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '20px 22px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 22,
+        fontFamily: fonts.body,
+        fontSize: 13,
+        color: colors.bone,
+      }}
+    >
       {!hasToken && (
-        <Section title="GitHub Token (for PR creation)">
-          <p style={{ color: '#6b7280', marginBottom: 8, fontSize: 12 }}>
-            Only needed if you want to create Pull Requests. Push uses your local git credentials.
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="password"
-              value={token}
-              onChange={e => setToken(e.target.value)}
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              style={inputStyle}
-            />
-            <button onClick={saveToken} disabled={loading} style={btnPrimary}>
-              Save
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            background: 'rgba(208,90,62,0.06)',
+            border: '1px solid rgba(208,90,62,0.22)',
+            borderRadius: 4,
+            fontFamily: fonts.body,
+            fontSize: 12,
+            color: colors.bone,
+            lineHeight: 1.5,
+          }}
+        >
+          <span
+            style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: colors.rust,
+              boxShadow: `0 0 6px ${colors.rust}`,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ flex: 1 }}>
+            A GitHub token is required to raise a PR.{' '}
+            <button
+              onClick={() => openSettings('github')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                color: colors.accent,
+                cursor: 'pointer',
+                fontFamily: fonts.body,
+                fontSize: 12,
+                textDecoration: 'underline',
+                textDecorationStyle: 'dotted',
+                textUnderlineOffset: 3,
+              }}
+            >
+              Add one in Settings → GitHub
             </button>
-          </div>
-        </Section>
-      )}
-
-      {hasToken && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#10b981', fontSize: 12 }}>GitHub token saved</span>
-          <button
-            onClick={async () => { await forge.deleteGithubToken(); setHasToken(false) }}
-            style={{ ...btnSecondary, fontSize: 11, padding: '2px 8px' }}
-          >
-            Remove
-          </button>
+            . Commit and push use your local git credentials.
+          </span>
         </div>
       )}
 
-      <Section title="Commit & Push">
+      <Section title="Commit · Push">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ color: '#6b7280', fontSize: 12 }}>
+          <span
+            style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: gitStatus && gitStatus.changed_count > 0 ? colors.accent : colors.ash,
+              boxShadow: gitStatus && gitStatus.changed_count > 0 ? `0 0 6px var(--accent)` : undefined,
+            }}
+          />
+          <span style={{ color: colors.smoke, fontSize: 12, fontFamily: fonts.mono, letterSpacing: '0.04em' }}>
             {gitStatus?.changed_count ?? 0} changed file(s)
           </span>
-          {gitStatus && gitStatus.changed_count > 0 && (
-            <span style={{ color: '#f59e0b', fontSize: 11 }}>{"\u25cf"}</span>
-          )}
         </div>
-        <p style={{ color: '#4b5563', fontSize: 11, marginBottom: 8 }}>
-          Uses your local git credentials (SSH key, credential helper, etc.).
+        <p style={{ color: colors.ash, fontSize: 11, marginBottom: 10, lineHeight: 1.5 }}>
+          Uses local git credentials (SSH key, credential helper, etc.).
         </p>
 
         <textarea
+          className="forge-textarea"
           value={commitMsg}
           onChange={e => setCommitMsg(e.target.value)}
-          placeholder="Commit message..."
+          placeholder="Commit message…"
           rows={2}
-          style={{ ...inputStyle, resize: 'vertical', marginBottom: 8 }}
+          style={{ marginBottom: 10 }}
         />
         <button
+          className="btn-strike"
           onClick={handleCommitPush}
           disabled={loading || !commitMsg.trim()}
-          style={{
-            ...btnPrimary,
-            opacity: (loading || !commitMsg.trim()) ? 0.5 : 1,
-            cursor:  (loading || !commitMsg.trim()) ? 'not-allowed' : 'pointer',
-          }}
+          style={{ width: '100%' }}
         >
-          {loading ? 'Working...' : 'Commit & Push'}
+          {loading ? 'Striking…' : 'Commit · Push'}
         </button>
       </Section>
 
       {pr && (
-        <Section title="Pull Request">
-          <div style={{
-            background: '#111318', borderRadius: 8,
-            border: '1px solid #1e2235', padding: 12,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{
-                background: prStatusColor(pr), color: '#fff',
-                borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-              }}>
+        <Section title="Pull request">
+          <div
+            style={{
+              background: colors.coal,
+              borderRadius: 6,
+              border: `1px solid ${colors.steel}`,
+              padding: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <span
+                style={{
+                  background: `${prStatusColor(pr)}22`,
+                  color: prStatusColor(pr),
+                  border: `1px solid ${prStatusColor(pr)}55`,
+                  borderRadius: 3,
+                  padding: '2px 8px',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  fontFamily: fonts.mono,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {prStatusLabel(pr)}
               </span>
-              <span style={{ color: '#6b7280', fontSize: 12 }}>#{pr.pr_number}</span>
+              <span style={{ color: colors.ash, fontSize: 11, fontFamily: fonts.mono }}>
+                #{pr.pr_number}
+              </span>
             </div>
-            <div style={{ color: '#d1d5db', marginBottom: 8 }}>{pr.title ?? ''}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ color: colors.ivory, marginBottom: 10, fontSize: 13.5, lineHeight: 1.45 }}>
+              {pr.title ?? ''}
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <a
                 href={pr.html_url ?? '#'}
                 target="_blank"
                 rel="noreferrer"
-                style={{ color: '#60a5fa', fontSize: 12 }}
+                style={{
+                  color: colors.accent,
+                  fontSize: 11,
+                  fontFamily: fonts.mono,
+                  letterSpacing: '0.12em',
+                  textDecoration: 'none',
+                  textTransform: 'uppercase',
+                }}
                 onClick={(e) => { e.preventDefault(); if (pr.html_url) window.__open?.(pr.html_url) }}
               >
-                View on GitHub
+                View on GitHub ↗
               </a>
-              <button onClick={handleRefreshPr} style={{ ...btnSecondary, fontSize: 11 }}>
+              <button
+                onClick={handleRefreshPr}
+                className="btn-ghost"
+                style={{ marginLeft: 'auto', fontSize: 10, padding: '4px 10px' }}
+              >
                 Refresh
               </button>
             </div>
@@ -201,60 +242,89 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
       )}
 
       {!pr && (
-        <Section title="Create Pull Request">
-          <label style={labelStyle}>Title</label>
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            style={{ ...inputStyle, marginBottom: 10 }}
-          />
+        <Section title="Raise pull request">
+          <Field label="Title">
+            <input
+              className="forge-input"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+            />
+          </Field>
 
-          <label style={labelStyle}>Description</label>
-          <textarea
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            placeholder="What did the agent change?"
-            rows={4}
-            style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }}
-          />
+          <Field label="Description">
+            <textarea
+              className="forge-textarea"
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              placeholder="What did the agent change?"
+              rows={4}
+            />
+          </Field>
 
-          <label style={labelStyle}>Base branch</label>
-          <input
-            value={baseBranch}
-            onChange={e => setBase(e.target.value)}
-            style={{ ...inputStyle, marginBottom: 10 }}
-          />
+          <Field label="Base branch">
+            <input
+              className="forge-input"
+              value={baseBranch}
+              onChange={e => setBase(e.target.value)}
+            />
+          </Field>
 
-          <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              color: colors.bone,
+              fontSize: 12.5,
+              cursor: 'pointer',
+              padding: '8px 0',
+            }}
+          >
             <input
               type="checkbox"
               checked={draft}
               onChange={e => setDraft(e.target.checked)}
+              style={{ accentColor: colors.accent, width: 14, height: 14 }}
             />
-            Create as draft PR
+            Raise as draft
           </label>
 
           <button
+            className="btn-strike"
             onClick={handleCreatePr}
             disabled={loading || !hasToken || !title.trim()}
-            style={{
-              ...btnPrimary, marginTop: 12, width: '100%',
-              opacity: (loading || !hasToken || !title.trim()) ? 0.5 : 1,
-              cursor:  (loading || !hasToken || !title.trim()) ? 'not-allowed' : 'pointer',
-            }}
+            style={{ marginTop: 8, width: '100%' }}
           >
-            {loading ? 'Creating...' : 'Create Pull Request'}
+            {loading ? 'Raising…' : 'Raise pull request'}
           </button>
         </Section>
       )}
 
       {error && (
-        <div style={{ color: '#ef4444', fontSize: 12, background: '#1c0a0a', padding: 10, borderRadius: 6 }}>
+        <div
+          style={{
+            color: colors.rust,
+            fontSize: 12,
+            background: 'rgba(208,90,62,0.06)',
+            border: `1px solid rgba(208,90,62,0.25)`,
+            padding: 10,
+            borderRadius: 4,
+          }}
+        >
           {error}
         </div>
       )}
       {info && (
-        <div style={{ color: '#10b981', fontSize: 12, background: '#052e16', padding: 10, borderRadius: 6 }}>
+        <div
+          style={{
+            color: colors.patina,
+            fontSize: 12,
+            background: 'rgba(93,180,140,0.06)',
+            border: `1px solid rgba(93,180,140,0.25)`,
+            padding: 10,
+            borderRadius: 4,
+          }}
+        >
           {info}
         </div>
       )}
@@ -265,10 +335,22 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{
-        fontSize: 11, fontWeight: 600, color: '#4b5563',
-        textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10,
-      }}>
+      <div
+        style={{
+          ...labelStyle,
+          marginBottom: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <span
+          style={{
+            width: 3, height: 3, borderRadius: '50%',
+            background: colors.accent,
+            boxShadow: `0 0 4px var(--accent)`,
+          }}
+        />
         {title}
       </div>
       {children}
@@ -276,22 +358,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#111318', border: '1px solid #1e2235',
-  borderRadius: 6, color: '#d1d5db', padding: '7px 10px',
-  fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif',
-  display: 'block',
-}
-const btnPrimary: React.CSSProperties = {
-  background: '#2563eb', border: 'none', color: '#fff',
-  borderRadius: 6, padding: '7px 14px', fontSize: 13, cursor: 'pointer',
-}
-const btnSecondary: React.CSSProperties = {
-  background: '#1e2235', border: '1px solid #374151', color: '#9ca3af',
-  borderRadius: 6, padding: '5px 10px', fontSize: 12, cursor: 'pointer',
-}
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4,
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ ...labelStyle, fontSize: 9, marginBottom: 6, color: colors.ash }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  )
 }
 
 declare global { interface Window { __open?: (url: string) => void } }

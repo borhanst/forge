@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Terminal } from './Terminal'
 import { TerminalShell } from './TerminalShell'
 import { forge } from '../lib/tauri'
+import { colors, fonts } from '../theme'
 
 interface Props {
   workspaceId: string
@@ -34,33 +35,23 @@ export function BottomPanel({ workspaceId }: Props) {
       <div
         style={{
           display: 'flex',
-          background: '#111318',
-          borderBottom: '1px solid #1e2235',
+          background: colors.iron,
+          borderBottom: `1px solid ${colors.steel}`,
           flexShrink: 0,
+          padding: '0 24px',
+          gap: 4,
         }}
       >
         {([
           { id: 'agent', label: 'Agent' },
           { id: 'shell', label: 'Shell' },
         ] as { id: Tab; label: string }[]).map((t) => (
-          <button
+          <Tab
             key={t.id}
+            label={t.label}
+            active={tab === t.id}
             onClick={() => setTab(t.id)}
-            style={{
-              padding: '8px 18px',
-              border: 'none',
-              cursor: 'pointer',
-              background: tab === t.id ? '#0d1117' : 'transparent',
-              color: tab === t.id ? '#d1d5db' : '#6b7280',
-              fontSize: 12,
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 500,
-              borderBottom: tab === t.id ? '2px solid #2563eb' : '2px solid transparent',
-              transition: 'color 0.1s',
-            }}
-          >
-            {t.label}
-          </button>
+          />
         ))}
       </div>
       <div
@@ -73,12 +64,46 @@ export function BottomPanel({ workspaceId }: Props) {
       >
         {tab === 'agent' && <Terminal workspaceId={workspaceId} />}
         {tab === 'shell' && (
-          <TerminalShell
-            key={workspaceId}
-            workspaceId={workspaceId}
-          />
+          <TerminalShell key={workspaceId} workspaceId={workspaceId} />
         )}
       </div>
     </div>
+  )
+}
+
+function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        padding: '10px 16px 11px',
+        border: 'none',
+        cursor: 'pointer',
+        background: 'transparent',
+        color: active ? colors.cream : colors.ash,
+        fontSize: 11,
+        fontFamily: fonts.mono,
+        fontWeight: active ? 600 : 500,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        transition: 'color 0.12s ease',
+      }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = colors.bone }}
+      onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = colors.ash }}
+    >
+      {label}
+      {active && (
+        <span
+          style={{
+            position: 'absolute',
+            left: 14, right: 14, bottom: -1,
+            height: 1,
+            background: colors.accent,
+            boxShadow: `0 0 8px var(--accent)`,
+          }}
+        />
+      )}
+    </button>
   )
 }

@@ -4,7 +4,7 @@ use chrono::Utc;
 use crate::state::AppState;
 use crate::db::schema::{Workspace, Repository, PullRequestRecord};
 use crate::services::github_client::GithubClient;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[tauri::command]
 pub async fn save_github_token(token: String) -> Result<(), String> {
@@ -29,6 +29,54 @@ pub async fn delete_github_token() -> Result<(), String> {
     entry.delete_password()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct GitHubUser {
+    pub login:       String,
+    pub name:        Option<String>,
+    pub html_url:    String,
+    pub avatar_url:  String,
+}
+
+#[tauri::command]
+pub async fn get_github_user() -> Result<GitHubUser, String> {
+    let entry = keyring::Entry::new("forge-app", "github-token")
+        .map_err(|e| format!("keyring error: {e}"))?;
+    let token = entry.get_password()
+        .map_err(|_| "No token saved".to_string())?;
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get("https://api.github.com/user")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("User-Agent", "forge")
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {e}"))?;
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err("Token rejected: unauthorized".to_string());
+    }
+    if status == reqwest::StatusCode::FORBIDDEN {
+        return Err("Token lacks required scope".to_string());
+    }
+    if !status.is_success() {
+        return Err(format!("GitHub returned {}", status));
+    }
+
+    let body: serde_json::Value = resp.json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {e}"))?;
+
+    Ok(GitHubUser {
+        login:      body.get("login").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        name:       body.get("name").and_then(|v| v.as_str()).map(String::from),
+        html_url:   body.get("html_url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        avatar_url: body.get("avatar_url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+    })
 }
 
 #[derive(Deserialize)]

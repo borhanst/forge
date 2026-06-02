@@ -2,33 +2,34 @@ import { useEffect, useRef } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { forge, forgeEvents } from '../lib/tauri'
+import { useForgeStore } from '../store'
 
 interface Props {
   workspaceId: string
 }
 
 const THEME = {
-  background:           '#020408',
-  foreground:           '#e2e8f0',
-  cursor:               '#fbbf24',
-  cursorAccent:         '#020408',
-  selectionBackground:  '#1e3a5f',
-  black:                '#1e293b',
-  red:                  '#f87171',
-  green:                '#4ade80',
-  yellow:               '#fbbf24',
-  blue:                 '#60a5fa',
-  magenta:              '#c084fc',
-  cyan:                 '#22d3ee',
-  white:                '#e2e8f0',
-  brightBlack:          '#475569',
-  brightRed:            '#fca5a5',
-  brightGreen:          '#86efac',
-  brightYellow:         '#fde68a',
-  brightBlue:           '#93c5fd',
-  brightMagenta:        '#d8b4fe',
-  brightCyan:           '#67e8f9',
-  brightWhite:          '#f8fafc',
+  background:           '#06040a',
+  foreground:           '#f5efe2',
+  cursor:               '#ff6a1f',
+  cursorAccent:         '#06040a',
+  selectionBackground:  '#3a2614',
+  black:                '#1c1813',
+  red:                  '#d05a3e',
+  green:                '#5db48c',
+  yellow:               '#d4a015',
+  blue:                 '#7ba6c2',
+  magenta:              '#c08a6b',
+  cyan:                 '#8dbab0',
+  white:                '#c9c1b1',
+  brightBlack:          '#5a5247',
+  brightRed:            '#f08060',
+  brightGreen:          '#86d3a8',
+  brightYellow:         '#fbbf24',
+  brightBlue:           '#a8c8e0',
+  brightMagenta:        '#e2b29a',
+  brightCyan:           '#b0dfd5',
+  brightWhite:          '#faf5e9',
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -53,6 +54,7 @@ export function TerminalShell({ workspaceId }: Props) {
   const termRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const exitingRef = useRef(false)
+  const fontSize = useForgeStore(s => s.settings.theme.terminalFontSize)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -168,14 +170,23 @@ export function TerminalShell({ workspaceId }: Props) {
     }
   }, [workspaceId])
 
+  // Apply font size changes from theme settings
+  useEffect(() => {
+    const term = termRef.current
+    const fit = fitRef.current
+    if (!term) return
+    term.options.fontSize = fontSize
+    try { fit?.fit() } catch { /* ignore */ }
+  }, [fontSize])
+
   return (
     <div
       ref={containerRef}
       style={{
         flex: 1,
         minHeight: 0,
-        background: '#020408',
-        padding: '4px 8px',
+        background: '#06040a',
+        padding: '8px 12px 12px',
         overflow: 'hidden',
       }}
     />

@@ -1,38 +1,39 @@
 import { useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import { MainPanel } from './components/MainPanel'
+import { ConfirmDialogHost } from './components/ConfirmDialog'
 import { useAgentEvents } from './hooks/useAgentEvents'
+import { useThemeStyle } from './hooks/useThemeStyle'
 import { forge, forgeEvents } from './lib/tauri'
 import { useForgeStore } from './store'
+import { colors } from './theme'
 import '@xterm/xterm/css/xterm.css'
 import './App.css'
 
-const spinStyle = document.createElement('style')
-spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`
-document.head.appendChild(spinStyle)
-
 export default function App() {
-  const { 
-    setProviders, 
-    setRepositories, 
-    setWorkspaces, 
-    setRunningAgent 
+  const {
+    setProviders,
+    setRepositories,
+    setWorkspaces,
+    setRunningAgent,
+    setSettings,
   } = useForgeStore()
 
   useAgentEvents()
+  useThemeStyle()
 
   useEffect(() => {
     forge.listProviders().then(setProviders).catch(e => console.error('[App] listProviders failed:', e))
     forge.listRepositories().then(setRepositories).catch(e => console.error('[App] listRepositories failed:', e))
     forge.listWorkspaces().then(setWorkspaces).catch(e => console.error('[App] listWorkspaces failed:', e))
 
-    // Restore any agents that were running before the window reloaded
+    forge.getAppSettings().then(setSettings).catch(e => console.error('[App] getAppSettings failed:', e))
+
     forge.listRunningAgents().then((agents) => {
       agents.forEach((a) => setRunningAgent(a.workspace_id, a.session_id))
     }).catch(e => console.error('[App] listRunningAgents failed:', e))
   }, [])
 
-  // Re-fetch providers when install completes
   useEffect(() => {
     const unlisten = forgeEvents.onProvidersRefresh(() => {
       forge.listProviders().then(setProviders).catch(e => console.error('[App] refreshProviders failed:', e))
@@ -41,9 +42,18 @@ export default function App() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0d0e11', overflow: 'hidden' }}>
+    <div
+      style={{
+        display: 'flex',
+        height: '100vh',
+        background: colors.soot,
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
       <Sidebar />
       <MainPanel />
+      <ConfirmDialogHost />
     </div>
   )
 }

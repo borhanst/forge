@@ -1,5 +1,6 @@
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { type FileDiff, type LineComment } from '../lib/tauri'
+import { colors, fonts } from '../theme'
 
 interface DiffLine {
   lineNumber: number | null
@@ -30,6 +31,24 @@ function parseDiff(raw: string): DiffLine[] {
     }
   }
   return lines
+}
+
+const LINE_BG: Record<string, string> = {
+  header:  'transparent',
+  hunk:    'rgba(212,160,21,0.06)',
+  add:     'rgba(93,180,140,0.10)',
+  remove:  'rgba(208,90,62,0.10)',
+  context: 'transparent',
+  empty:   'transparent',
+}
+
+const LINE_FG: Record<string, string> = {
+  header:  colors.bone,
+  hunk:    colors.brass,
+  add:     '#9fdcb6',
+  remove:  '#e89784',
+  context: colors.bone,
+  empty:   'transparent',
 }
 
 interface Props {
@@ -95,106 +114,209 @@ const DiffModal: FC<Props> = ({ files, initialFile, workspaceId, comments, onCom
       onKeyDown={handleKeyDown}
       tabIndex={0}
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        animation: 'forge-fade-in 0.18s ease',
       }}
     >
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)' }} />
+      <div
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.78)',
+          backdropFilter: 'blur(6px)',
+        }}
+      />
 
-      <div style={{
-        position: 'relative', width: '92vw', height: '88vh',
-        background: '#0f1117', borderRadius: 12, overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
-        border: '1px solid #1e2235', boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '12px 16px', borderBottom: '1px solid #1e2235',
-          background: '#14161c', flexShrink: 0,
-        }}>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', color: '#9ca3af',
-            cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px',
-          }}>&times;</button>
+      <div
+        className="forge-rise"
+        style={{
+          position: 'relative',
+          width: '92vw',
+          height: '88vh',
+          background: colors.iron,
+          borderRadius: 12,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          border: `1px solid ${colors.steelHi}`,
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.08)',
+        }}
+      >
+        {/* Ember stripe */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0, left: 48, right: 48, height: 1,
+            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
+            opacity: 0.55,
+          }}
+        />
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '14px 20px',
+            borderBottom: `1px solid ${colors.steel}`,
+            background: colors.iron,
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${colors.steel}`,
+              color: colors.ash,
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1,
+              padding: '4px 10px',
+              borderRadius: 4,
+              transition: 'all 0.12s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = colors.rust; e.currentTarget.style.borderColor = colors.rust }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = colors.ash; e.currentTarget.style.borderColor = colors.steel }}
+          >
+            ×
+          </button>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div
+              style={{
+                color: colors.ivory,
+                fontWeight: 500,
+                fontSize: 13.5,
+                fontFamily: fonts.mono,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                letterSpacing: '-0.005em',
+              }}
+            >
               {file?.path ?? ''}
             </div>
-            <div style={{ color: '#6b7280', fontSize: 11 }}>
-              <span style={{ color: '#22c55e' }}>+{add}</span>
-              {' '}<span style={{ color: '#ef4444' }}>-{del}</span>
-              {' '}· file {index + 1} of {files.length}
+            <div
+              style={{
+                color: colors.ash,
+                fontSize: 10.5,
+                marginTop: 2,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ color: colors.patina }}>+{add}</span>
+              <span style={{ color: colors.rust }}>−{del}</span>
+              <span style={{ color: colors.steel }}>·</span>
+              <span>file {index + 1} / {files.length}</span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={() => go(index - 1)} disabled={index === 0} style={{
-              background: '#1e2235', border: '1px solid #374151',
-              color: index > 0 ? '#d1d5db' : '#4b5563',
-              borderRadius: 6, padding: '4px 10px', fontSize: 12,
-              cursor: index > 0 ? 'pointer' : 'default',
-            }}>&larr; Prev</button>
-            <button onClick={() => go(index + 1)} disabled={index >= files.length - 1} style={{
-              background: '#1e2235', border: '1px solid #374151',
-              color: index < files.length - 1 ? '#d1d5db' : '#4b5563',
-              borderRadius: 6, padding: '4px 10px', fontSize: 12,
-              cursor: index < files.length - 1 ? 'pointer' : 'default',
-            }}>Next &rarr;</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <NavButton onClick={() => go(index - 1)} disabled={index === 0}>← Prev</NavButton>
+            <NavButton onClick={() => go(index + 1)} disabled={index >= files.length - 1}>Next →</NavButton>
           </div>
         </div>
 
-        <div ref={contentRef} style={{
-          flex: 1, overflowY: 'auto', padding: '4px 0',
-          fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: 12, lineHeight: 1.6,
-        }}>
+        <div
+          ref={contentRef}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '6px 0',
+            fontFamily: fonts.mono,
+            fontSize: 12,
+            lineHeight: 1.65,
+            background: '#06040a',
+          }}
+        >
           {lines.map((line, i) => {
             const cs = line.lineNumber ? fileCmt(line.lineNumber) : []
             return (
-              <div key={i} style={{ display: 'flex', minHeight: 19 }}>
+              <div key={i} style={{ display: 'flex', minHeight: 20 }}>
                 <div
                   onClick={() => line.lineNumber && setCommentLine(line.lineNumber)}
                   style={{
-                    width: 52, flexShrink: 0, textAlign: 'right', padding: '0 10px',
-                    color: '#4b5563', userSelect: 'none',
-                    borderRight: '1px solid #1e2235',
+                    width: 56,
+                    flexShrink: 0,
+                    textAlign: 'right',
+                    padding: '0 12px',
+                    color: colors.steel,
+                    userSelect: 'none',
+                    borderRight: `1px solid ${colors.steel}`,
                     cursor: line.lineNumber ? 'pointer' : 'default',
                     position: 'relative',
+                    fontSize: 11,
                   }}
                 >
                   {line.lineNumber ?? ''}
-                  {cs.length > 0 && <span style={{
-                    position: 'absolute', left: 4, top: 4, width: 6, height: 6,
-                    borderRadius: '50%', background: '#f59e0b',
-                  }} />}
+                  {cs.length > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 4, top: 5,
+                        width: 6, height: 6,
+                        borderRadius: '50%',
+                        background: colors.brass,
+                        boxShadow: `0 0 4px ${colors.brass}`,
+                      }}
+                    />
+                  )}
                 </div>
-                <div style={{
-                  flex: 1, padding: '0 16px 0 8px', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  background: {
-                    header: 'transparent', hunk: '#1a1040', add: '#052e16',
-                    remove: '#450a0a', context: 'transparent', empty: 'transparent',
-                  }[line.type],
-                  color: '#6b7280',
-                }}>
-                  <span style={{
-                    color: {
-                      header: '#60a5fa', hunk: '#a78bfa', add: '#86efac',
-                      remove: '#fca5a5', context: '#d1d5db', empty: 'transparent',
-                    }[line.type],
-                    fontWeight: line.type === 'header' || line.type === 'hunk' ? 600 : 400,
-                  }}>
-                    {line.content || '\u00a0'}
-                  </span>
+                <div
+                  style={{
+                    flex: 1,
+                    padding: '0 18px 0 10px',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    background: LINE_BG[line.type],
+                    color: LINE_FG[line.type],
+                    fontWeight: line.type === 'header' || line.type === 'hunk' ? 500 : 400,
+                  }}
+                >
+                  {line.content || '\u00a0'}
                 </div>
                 {cs.length > 0 && (
-                  <div style={{
-                    flexShrink: 0, fontSize: 11, color: '#f59e0b',
-                    padding: '0 12px', display: 'flex', alignItems: 'center', gap: 4, maxWidth: 300,
-                  }}>
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 11,
+                      color: colors.brass,
+                      padding: '0 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      maxWidth: 320,
+                    }}
+                  >
                     {cs.map(c => (
-                      <span key={c.id} style={{
-                        background: '#1c1917', padding: '2px 8px', borderRadius: 6,
-                        border: '1px solid #f59e0b44', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }} title={c.content}>{c.content}</span>
+                      <span
+                        key={c.id}
+                        style={{
+                          background: 'rgba(212,160,21,0.06)',
+                          padding: '2px 8px',
+                          borderRadius: 3,
+                          border: `1px solid rgba(212,160,21,0.3)`,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontFamily: fonts.body,
+                        }}
+                        title={c.content}
+                      >
+                        {c.content}
+                      </span>
                     ))}
                   </div>
                 )}
@@ -204,41 +326,83 @@ const DiffModal: FC<Props> = ({ files, initialFile, workspaceId, comments, onCom
         </div>
 
         {commentLine !== null && file && (
-          <div style={{
-            borderTop: '1px solid #2563eb', background: '#14161c',
-            padding: '12px 16px', flexShrink: 0,
-          }}>
-            <div style={{ color: '#60a5fa', fontSize: 11, marginBottom: 6 }}>
-              Comment on <span style={{ fontWeight: 600 }}>{file.path}</span>:<span style={{ fontWeight: 600 }}>{commentLine}</span>
+          <div
+            className="forge-rise"
+            style={{
+              borderTop: `1px solid var(--accent)`,
+              background: colors.iron,
+              padding: '14px 20px',
+              flexShrink: 0,
+              boxShadow: `0 -8px 24px -8px rgba(255,106,31,0.18)`,
+            }}
+          >
+            <div
+              style={{
+                color: colors.accent,
+                fontSize: 10.5,
+                marginBottom: 8,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Comment · <span style={{ color: colors.bone }}>{file.path}</span>
+              <span style={{ color: colors.ash }}> : </span>
+              <span style={{ color: colors.cream }}>{commentLine}</span>
             </div>
             <textarea
               ref={commentRef}
+              className="forge-textarea"
               value={commentText}
               onChange={e => setCommentText(e.target.value)}
-              placeholder="Write a comment to send back to the agent…"
+              placeholder="Note for the smith — sent back to the agent next run…"
               rows={2}
-              style={{
-                width: '100%', background: '#1e293b', border: '1px solid #334155',
-                color: '#e2e8f0', borderRadius: 6, padding: 8, fontSize: 12,
-                outline: 'none', resize: 'vertical', fontFamily: 'Inter, sans-serif',
-              }}
             />
-            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              <button onClick={handleSubmit} disabled={!commentText.trim()} style={{
-                background: '#2563eb', border: 'none', color: '#fff',
-                borderRadius: 4, padding: '4px 14px', fontSize: 12,
-                cursor: commentText.trim() ? 'pointer' : 'not-allowed',
-                opacity: commentText.trim() ? 1 : 0.5,
-              }}>Send Comment</button>
-              <button onClick={() => { setCommentLine(null); setCommentText('') }} style={{
-                background: '#1e2235', border: '1px solid #374151', color: '#9ca3af',
-                borderRadius: 4, padding: '4px 14px', fontSize: 12, cursor: 'pointer',
-              }}>Cancel</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                className="btn-strike"
+                onClick={handleSubmit}
+                disabled={!commentText.trim()}
+              >
+                Send to smith
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={() => { setCommentLine(null); setCommentText('') }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function NavButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        background: 'transparent',
+        border: `1px solid ${disabled ? colors.steel : colors.steelHi}`,
+        color: disabled ? colors.steel : colors.bone,
+        borderRadius: 4,
+        padding: '5px 12px',
+        fontSize: 10.5,
+        fontFamily: fonts.mono,
+        cursor: disabled ? 'default' : 'pointer',
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        transition: 'all 0.12s ease',
+      }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.setProperty('color', 'var(--accent)') }}
+      onMouseLeave={(e) => { if (!disabled) e.currentTarget.style.color = colors.bone }}
+    >
+      {children}
+    </button>
   )
 }
 

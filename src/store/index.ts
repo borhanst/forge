@@ -1,11 +1,14 @@
 import { create } from 'zustand'
-import type { Repository, Workspace, ProviderInfo } from '../lib/tauri'
+import type { Repository, Workspace, ProviderInfo, AppSettings } from '../lib/tauri'
+import { defaultAppSettings } from '../lib/settings'
 
 export interface TerminalLine {
   stream:  'stdout' | 'stderr' | 'system'
   content: string
   ts:      number
 }
+
+export type SettingsTabId = 'general' | 'theme' | 'agents' | 'github' | 'about'
 
 interface ForgeStore {
   repositories: Repository[]
@@ -18,6 +21,11 @@ interface ForgeStore {
   agentOutputs: Record<string, TerminalLine[]>
   runningAgents: Set<string>           // workspace IDs with active agents
   currentSessionId: Record<string, string>  // workspaceId -> sessionId
+
+  settings:          AppSettings
+  settingsLoaded:    boolean
+  settingsOpen:      boolean
+  settingsInitialTab: SettingsTabId
 
   setRepositories: (repos: Repository[]) => void
   setWorkspaces: (workspaces: Workspace[]) => void
@@ -36,9 +44,16 @@ interface ForgeStore {
 
   setRunningAgent: (workspaceId: string, sessionId: string) => void
   clearRunningAgent: (workspaceId: string) => void
+
+  setSettings: (settings: AppSettings) => void
+  patchSettings: (updater: (s: AppSettings) => AppSettings) => void
+  openSettings: (tab?: SettingsTabId) => void
+  closeSettings: () => void
 }
 
-export const useForgeStore = create<ForgeStore>((set) => ({
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+export const useForgeStore = create<ForgeStore>((set, get) => ({
   repositories: [],
   workspaces: [],
   providers: [],
@@ -47,6 +62,11 @@ export const useForgeStore = create<ForgeStore>((set) => ({
   agentOutputs: {},
   runningAgents: new Set<string>(),
   currentSessionId: {},
+
+  settings:           defaultAppSettings,
+  settingsLoaded:     false,
+  settingsOpen:       false,
+  settingsInitialTab: 'general',
 
   setRepositories: (repositories) => set({ repositories }),
   setWorkspaces: (workspaces) => set({ workspaces }),
@@ -94,4 +114,31 @@ export const useForgeStore = create<ForgeStore>((set) => ({
       next.delete(workspaceId)
       return { runningAgents: next }
     }),
+
+  setSettings: (settings) => {
+    set({ settings, settingsLoaded: true })
+    scheduleSave(settings)
+  },
+
+  patchSettings: (updater) => {
+    const next = updater(get().settings)
+    set({ settings: next, settingsLoaded: true })
+    scheduleSave(next)
+  },
+
+  openSettings: (tab) =>
+    set({ settingsOpen: true, settingsInitialTab: tab ?? 'general' }),
+
+  closeSettings: () => set({ settingsOpen: false }),
 }))
+
+function scheduleSave(settings: AppSettings) {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    import('../lib/tauri').then(({ forge }) => {
+      forge.updateAppSettings(settings).catch((e) => {
+        console.error('[settings] save failed:', e)
+      })
+    })
+  }, 300)
+}

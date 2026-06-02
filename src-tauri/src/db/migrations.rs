@@ -79,6 +79,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_line_comments_workspace ON line_comments(workspace_id);
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
     "#,
     )
     .execute(pool)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { forge } from '../lib/tauri'
 import type { BranchInfo } from '../lib/tauri'
+import { colors, fonts, displayItalic, labelStyle } from '../theme'
 
 interface Props {
   workspaceId: string
@@ -14,14 +15,14 @@ interface Props {
 export default function MergeModal({
   workspaceId, workspaceName, defaultPush, defaultCleanup, onClose, onMerged,
 }: Props) {
-  const [branches, setBranches] = useState<BranchInfo[]>([])
+  const [branches, setBranches]   = useState<BranchInfo[]>([])
   const [targetBranch, setTargetBranch] = useState('')
   const [pushToRemote, setPushToRemote] = useState(defaultPush)
-  const [cleanup, setCleanup] = useState(defaultCleanup)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [cleanup, setCleanup]     = useState(defaultCleanup)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
   const [hasChanges, setHasChanges] = useState(true)
-  const [result, setResult] = useState<{ success: boolean; message: string; conflicted_files?: string[] } | null>(null)
+  const [result, setResult]       = useState<{ success: boolean; message: string; conflicted_files?: string[] } | null>(null)
   const [resolving, setResolving] = useState(false)
   const [resolveResult, setResolveResult] = useState<string | null>(null)
 
@@ -82,64 +83,133 @@ export default function MergeModal({
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-    }}>
-      <div style={{
-        background: '#1a1c24', border: '1px solid #2d3148', borderRadius: 12,
-        padding: 24, width: 420, color: '#d1d5db', fontFamily: 'Inter, sans-serif',
-      }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 16, color: '#fff' }}>Merge Workspace</h2>
-        <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 16px' }}>
-          Merge <strong style={{ color: '#d1d5db' }}>{workspaceName}</strong> into target branch
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        animation: 'forge-fade-in 0.18s ease',
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="forge-rise"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.iron,
+          border: `1px solid ${colors.steelHi}`,
+          borderRadius: 10,
+          padding: 32,
+          width: 460,
+          color: colors.ivory,
+          fontFamily: fonts.body,
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 0, left: 28, right: 28, height: 1,
+            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
+            opacity: 0.5,
+          }}
+        />
+
+        <div style={labelStyle}>Quench & weld</div>
+        <h2
+          style={{
+            ...displayItalic,
+            margin: '4px 0 4px',
+            fontSize: 26,
+            color: colors.cream,
+            letterSpacing: '-0.015em',
+          }}
+        >
+          Merge {workspaceName}
+        </h2>
+        <p style={{ color: colors.smoke, fontSize: 13, marginBottom: 20, lineHeight: 1.5 }}>
+          Fold this anvil's work into the target branch.
         </p>
 
         {result?.success ? (
-          <p style={{ color: '#10b981', fontSize: 14, margin: '12px 0' }}>{result.message}</p>
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: 'rgba(93,180,140,0.06)',
+              border: `1px solid rgba(93,180,140,0.25)`,
+              padding: '12px 14px',
+              borderRadius: 6,
+              color: colors.patina,
+              fontSize: 13,
+              margin: '8px 0',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: colors.patina, boxShadow: `0 0 6px ${colors.patina}` }} />
+            {result.message}
+          </div>
         ) : result?.conflicted_files?.length ? (
           <div>
-            <p style={{ color: '#f59e0b', fontSize: 13, marginBottom: 8 }}>
-              Merge conflicts in {result.conflicted_files.length} file(s):
+            <p
+              style={{
+                color: colors.brass,
+                fontSize: 12.5,
+                marginBottom: 10,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.04em',
+              }}
+            >
+              ⚠ Conflicts in {result.conflicted_files.length} file(s)
             </p>
-            <ul style={{ color: '#d1d5db', fontSize: 12, margin: '0 0 12px', paddingLeft: 20, maxHeight: 150, overflowY: 'auto' }}>
+            <ul
+              style={{
+                color: colors.bone,
+                fontSize: 11.5,
+                margin: '0 0 14px',
+                paddingLeft: 18,
+                maxHeight: 150,
+                overflowY: 'auto',
+                fontFamily: fonts.mono,
+                lineHeight: 1.7,
+              }}
+            >
               {result.conflicted_files.map(f => (
-                <li key={f} style={{ padding: '2px 0' }}>{f}</li>
+                <li key={f} style={{ padding: '1px 0' }}>{f}</li>
               ))}
             </ul>
-            <p style={{ color: '#9ca3af', fontSize: 12, marginBottom: 12 }}>
-              Use an AI agent to automatically resolve conflicts and complete the merge.
+            <p style={{ color: colors.smoke, fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
+              Let the smith resolve the seam and finish the weld automatically.
             </p>
             <button
               onClick={handleResolve}
               disabled={resolving}
-              style={{
-                width: '100%', background: resolving ? '#334155' : '#7c3aed',
-                border: 'none', color: '#fff', borderRadius: 6, padding: '9px 18px',
-                fontSize: 13, cursor: resolving ? 'not-allowed' : 'pointer',
-              }}
+              className="btn-strike"
+              style={{ width: '100%' }}
             >
-              {resolving ? 'Resolving...' : 'Resolve with Agent'}
+              {resolving ? 'Resolving…' : 'Resolve with agent'}
             </button>
             {resolveResult && (
-              <p style={{ color: '#10b981', fontSize: 12, marginTop: 8 }}>{resolveResult}</p>
+              <p style={{ color: colors.patina, fontSize: 12, marginTop: 10 }}>
+                {resolveResult}
+              </p>
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginBottom: 4 }}>
-                Target Branch
-              </label>
+              <div style={{ ...labelStyle, fontSize: 9, marginBottom: 6 }}>
+                Target branch
+              </div>
               <select
+                className="forge-select"
                 value={targetBranch}
                 onChange={e => setTargetBranch(e.target.value)}
                 disabled={loading}
-                style={{
-                  width: '100%', background: '#1e293b', border: '1px solid #334155',
-                  color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
-                  outline: 'none',
-                }}
               >
                 {branches.map(b => (
                   <option key={b.name} value={b.name}>
@@ -149,30 +219,35 @@ export default function MergeModal({
               </select>
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#d1d5db', fontSize: 13, cursor: 'pointer' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: colors.bone,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={pushToRemote}
                 onChange={e => setPushToRemote(e.target.checked)}
                 disabled={loading}
-                style={{ accentColor: '#2563eb' }}
+                style={{ accentColor: colors.accent, width: 14, height: 14 }}
               />
               Push to remote after merge
             </label>
 
             <div>
-              <label style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginBottom: 4 }}>
+              <div style={{ ...labelStyle, fontSize: 9, marginBottom: 6 }}>
                 Cleanup after merge
-              </label>
+              </div>
               <select
+                className="forge-select"
                 value={cleanup}
                 onChange={e => setCleanup(e.target.value)}
                 disabled={loading}
-                style={{
-                  width: '100%', background: '#1e293b', border: '1px solid #334155',
-                  color: '#e2e8f0', padding: '8px 12px', borderRadius: 6, fontSize: 13,
-                  outline: 'none',
-                }}
               >
                 <option value="archive">Archive workspace</option>
                 <option value="delete">Delete workspace + branch</option>
@@ -183,31 +258,44 @@ export default function MergeModal({
         )}
 
         {error && !result?.success && (
-          <p style={{ color: '#ef4444', fontSize: 12, margin: '12px 0 0' }}>{error}</p>
+          <p
+            style={{
+              color: colors.rust,
+              fontSize: 12,
+              margin: '14px 0 0',
+              background: 'rgba(208,90,62,0.06)',
+              border: `1px solid rgba(208,90,62,0.25)`,
+              padding: '8px 10px',
+              borderRadius: 4,
+            }}
+          >
+            {error}
+          </p>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            marginTop: 22,
+            justifyContent: 'flex-end',
+          }}
+        >
           <button
+            className="btn-ghost"
             onClick={onClose}
             disabled={loading || resolving}
-            style={{
-              background: '#23263a', border: '1px solid #374151', color: '#9ca3af',
-              borderRadius: 6, padding: '7px 16px', fontSize: 13, cursor: 'pointer',
-            }}
           >
             {result?.success ? 'Close' : 'Cancel'}
           </button>
           {!result && (
             <button
+              className="btn-strike"
               onClick={handleMerge}
               disabled={loading || hasChanges || !targetBranch}
-              style={{
-                background: loading || hasChanges || !targetBranch ? '#334155' : '#2563eb',
-                border: 'none', color: '#fff', borderRadius: 6, padding: '7px 18px',
-                fontSize: 13, cursor: loading || hasChanges || !targetBranch ? 'not-allowed' : 'pointer',
-              }}
+              title={hasChanges ? 'Commit pending changes first' : ''}
             >
-              {loading ? 'Merging...' : hasChanges ? 'Commit changes first' : 'Merge'}
+              {loading ? 'Welding…' : hasChanges ? 'Commit first' : 'Weld'}
             </button>
           )}
         </div>

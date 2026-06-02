@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { forge, type FileDiff, type LineComment, type CommitInfo, type PullRequestRecord } from '../lib/tauri'
 import { useForgeStore } from '../store'
+import { colors, fonts } from '../theme'
 import DiffModal from './DiffModal'
 
 type View = 'changes' | 'history'
@@ -9,10 +10,6 @@ interface DiffLine {
   lineNumber: number | null
   type:       'header' | 'hunk' | 'add' | 'remove' | 'context' | 'empty'
   content:    string
-}
-
-function plural(n: number, s: string): string {
-  return `${n} ${s}${n === 1 ? '' : 's'}`
 }
 
 function parseDiff(raw: string): DiffLine[] {
@@ -41,18 +38,18 @@ function parseDiff(raw: string): DiffLine[] {
   return lines
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  added:    '#22c55e',
-  modified: '#f59e0b',
-  deleted:  '#ef4444',
+const STATUS_COLOR: Record<string, string> = {
+  added:    colors.patina,
+  modified: colors.brass,
+  deleted:  colors.rust,
 }
 
 const LINE_STYLE: Record<string, React.CSSProperties> = {
-  header:  { color: '#60a5fa', fontWeight: 600 },
-  hunk:    { color: '#a78bfa', background: '#1a1040', padding: '2px 0' },
-  add:     { color: '#86efac', background: '#052e16' },
-  remove:  { color: '#fca5a5', background: '#450a0a' },
-  context: { color: '#6b7280' },
+  header:  { color: colors.bone, fontWeight: 500 },
+  hunk:    { color: colors.brass, background: 'rgba(212,160,21,0.06)', padding: '2px 0' },
+  add:     { color: '#9fdcb6', background: 'rgba(93,180,140,0.10)' },
+  remove:  { color: '#e89784', background: 'rgba(208,90,62,0.10)' },
+  context: { color: colors.ash },
   empty:   { color: 'transparent' },
 }
 
@@ -71,40 +68,66 @@ function CommitRow({ commit, selected, onSelect }: {
     <div
       onClick={onSelect}
       style={{
-        padding: '8px 16px', cursor: 'pointer', borderBottom: '1px solid #1e2235',
-        background: selected ? '#1e3a5f' : 'transparent',
+        padding: '10px 18px',
+        cursor: 'pointer',
+        borderBottom: `1px solid ${colors.steel}`,
+        background: selected ? colors.coal : 'transparent',
         fontSize: 12,
+        position: 'relative',
+        transition: 'background 0.12s ease',
       }}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = `${colors.coal}80` }}
+      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent' }}
     >
-      <div style={{ fontWeight: 600, color: selected ? '#93c5fd' : '#d1d5db', marginBottom: 2 }}>
-        {commit.short_hash} {commit.message}
+      {selected && (
+        <span
+          style={{
+            position: 'absolute',
+            left: 0, top: 6, bottom: 6,
+            width: 2,
+            background: colors.accent,
+            boxShadow: `0 0 8px var(--accent)`,
+          }}
+        />
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3 }}>
+        <code style={{
+          fontFamily: fonts.mono,
+          fontSize: 10.5,
+          color: colors.accent,
+          letterSpacing: '0.04em',
+        }}>
+          {commit.short_hash}
+        </code>
+        <span style={{ color: selected ? colors.cream : colors.ivory, fontWeight: 500 }}>
+          {commit.message}
+        </span>
       </div>
-      <div style={{ color: '#4b5563', fontSize: 11 }}>
-        {commit.author} &middot; {date}
+      <div
+        style={{
+          color: colors.ash,
+          fontSize: 10.5,
+          fontFamily: fonts.mono,
+          letterSpacing: '0.04em',
+        }}
+      >
+        {commit.author} · {date}
       </div>
     </div>
   )
 }
 
-const TAB_STYLE = (active: boolean): React.CSSProperties => ({
-  flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer',
-  background: active ? '#0d0e11' : 'transparent',
-  color:      active ? '#d1d5db'  : '#4b5563',
-  fontSize: 12, fontFamily: 'Inter, sans-serif',
-  borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
-})
-
 export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
-  const [view, setView]         = useState<View>('changes')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [view, setView] = useState<View>('changes')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const [files, setFiles]       = useState<FileDiff[]>([])
+  const [files, setFiles] = useState<FileDiff[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
 
-  const [commits, setCommits]         = useState<CommitInfo[]>([])
+  const [commits, setCommits] = useState<CommitInfo[]>([])
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
-  const [commitDiff, setCommitDiff]   = useState<string>('')
+  const [commitDiff, setCommitDiff] = useState<string>('')
   const [commitLoading, setCommitLoading] = useState(false)
 
   const [comments, setComments] = useState<LineComment[]>([])
@@ -203,50 +226,99 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
   }
 
   return (
-    <div style={{
-      flex: 1, display: 'flex', flexDirection: 'column',
-      overflow: 'hidden', background: '#0a0b0e',
-    }}>
-      <div style={{ display: 'flex', borderBottom: '1px solid #1e2235', background: '#111318', flexShrink: 0, alignItems: 'center' }}>
-        <button style={TAB_STYLE(view === 'changes')} onClick={() => setView('changes')}>
-          Changes
-        </button>
-        <button style={TAB_STYLE(view === 'history')} onClick={() => setView('history')}>
-          History
-        </button>
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: colors.iron,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: `1px solid ${colors.steel}`,
+          background: colors.iron,
+          flexShrink: 0,
+          alignItems: 'center',
+          padding: '0 8px',
+          gap: 4,
+        }}
+      >
+        <SubTab label="Changes" active={view === 'changes'} onClick={() => setView('changes')} />
+        <SubTab label="History" active={view === 'history'} onClick={() => setView('history')} />
+        <div style={{ flex: 1 }} />
         <button
           onClick={view === 'changes' ? loadDiff : loadHistory}
           disabled={loading}
           style={{
-            background: '#1e2235', border: '1px solid #374151', color: '#9ca3af',
-            borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer',
-            marginRight: 12, whiteSpace: 'nowrap',
+            background: 'transparent',
+            border: `1px solid ${colors.steel}`,
+            color: loading ? colors.steel : colors.smoke,
+            borderRadius: 3,
+            padding: '4px 10px',
+            fontSize: 10,
+            cursor: loading ? 'wait' : 'pointer',
+            marginRight: 10,
+            whiteSpace: 'nowrap',
+            fontFamily: fonts.mono,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            transition: 'all 0.12s ease',
           }}
+          onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.setProperty('color', 'var(--accent)'); e.currentTarget.style.setProperty('borderColor', 'var(--accent-deep)') } }}
+          onMouseLeave={(e) => { if (!loading) { e.currentTarget.style.color = colors.smoke; e.currentTarget.style.borderColor = colors.steel } }}
         >
-          {loading ? 'Loading...' : 'Refresh'}
+          {loading ? '…' : '↻ Refresh'}
         </button>
       </div>
 
       {view === 'changes' && (changedCount > 0 || prRecord) && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px',
-          borderBottom: '1px solid #1e2235', background: '#0f1117', flexShrink: 0, fontSize: 12,
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 18px',
+            borderBottom: `1px solid ${colors.steel}`,
+            background: colors.coal,
+            flexShrink: 0,
+            fontSize: 12,
+          }}
+        >
           {!prRecord && (
             <>
-              <span style={{ color: '#f59e0b' }}>{'\u25cf'}</span>
-              <span style={{ color: '#9ca3af' }}>
-                {changedCount} file{changedCount !== 1 ? 's' : ''} changed &mdash; ready to commit and push
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: colors.accent,
+                boxShadow: `0 0 8px var(--accent)`,
+              }} />
+              <span style={{ color: colors.bone }}>
+                {changedCount} {changedCount === 1 ? 'file' : 'files'} ready for the hammer
               </span>
               {onSwitchToPR && (
                 <button
                   onClick={onSwitchToPR}
                   style={{
-                    marginLeft: 'auto', background: '#2563eb', border: 'none', color: '#fff',
-                    borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer',
+                    marginLeft: 'auto',
+                    background: 'transparent',
+                    border: `1px solid var(--accent)`,
+                    color: colors.accent,
+                    borderRadius: 3,
+                    padding: '4px 12px',
+                    fontSize: 10,
+                    cursor: 'pointer',
+                    fontFamily: fonts.mono,
+                    fontWeight: 600,
+                    letterSpacing: '0.16em',
+                    textTransform: 'uppercase',
+                    transition: 'all 0.12s ease',
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,106,31,0.10)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                 >
-                  Commit & Push
+                  Ship →
                 </button>
               )}
             </>
@@ -255,13 +327,20 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
             <>
               <span style={{
                 width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                background: prRecord.merged ? '#a78bfa' : prRecord.state === 'closed' ? '#ef4444' : prRecord.draft ? '#6b7280' : '#10b981',
+                background: prRecord.merged ? '#a78bfa' : prRecord.state === 'closed' ? colors.rust : prRecord.draft ? colors.ash : colors.patina,
               }} />
-              <span style={{ color: '#9ca3af' }}>
-                PR #{prRecord.pr_number}: {prRecord.title ?? ''}
+              <span style={{ color: colors.bone, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                <span style={{ fontFamily: fonts.mono, color: colors.ash, marginRight: 6 }}>
+                  PR #{prRecord.pr_number}
+                </span>
+                {prRecord.title ?? ''}
                 <span style={{
-                  marginLeft: 8, color: '#fff', fontSize: 11, padding: '1px 6px', borderRadius: 8,
-                  background: prRecord.merged ? '#a78bfa44' : prRecord.state === 'closed' ? '#ef444444' : '#10b98144',
+                  marginLeft: 8, color: colors.cream, fontSize: 10, padding: '2px 6px', borderRadius: 3,
+                  background: prRecord.merged ? '#a78bfa22' : prRecord.state === 'closed' ? 'rgba(208,90,62,0.18)' : 'rgba(93,180,140,0.18)',
+                  fontFamily: fonts.mono,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
                 }}>
                   {prRecord.merged ? 'Merged' : prRecord.state === 'closed' ? 'Closed' : prRecord.draft ? 'Draft' : 'Open'}
                 </span>
@@ -271,10 +350,17 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
                   href={prRecord.html_url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: '#60a5fa', marginLeft: 'auto', textDecoration: 'none', fontSize: 12 }}
+                  style={{
+                    color: colors.accent,
+                    textDecoration: 'none',
+                    fontSize: 11,
+                    fontFamily: fonts.mono,
+                    letterSpacing: '0.08em',
+                    whiteSpace: 'nowrap',
+                  }}
                   onClick={e => { if (window.__open) { e.preventDefault(); window.__open(prRecord.html_url!) } }}
                 >
-                  View on GitHub &rarr;
+                  GitHub ↗
                 </a>
               )}
             </>
@@ -283,55 +369,128 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
       )}
 
       {error && (
-        <div style={{ color: '#ef4444', padding: '16px', fontSize: 12 }}>{error}</div>
+        <div
+          style={{
+            color: colors.rust,
+            padding: '14px 18px',
+            fontSize: 12,
+            background: 'rgba(208,90,62,0.06)',
+            borderBottom: `1px solid ${colors.steel}`,
+            fontFamily: fonts.mono,
+          }}
+        >
+          {error}
+        </div>
       )}
 
       {view === 'changes' && (
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {files.length === 0 && !loading && !error && (
-            <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#374151', fontSize: 13,
-            }}>
-              No changes in this workspace.
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: colors.ash,
+                fontSize: 12,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
+              <span style={{ color: colors.steelHi, fontSize: 16 }}>—</span>
+              <span>No changes</span>
             </div>
           )}
 
           {files.length > 0 && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              <div style={{
-                padding: '8px 16px', borderBottom: '1px solid #1e2235',
-                color: '#9ca3af', fontSize: 11, fontWeight: 600,
-              }}>
-                {files.length} {plural(files.length, 'file')} &middot;
-                <span style={{ color: '#22c55e', marginLeft: 4 }}>+{totalAdditions}</span>
-                <span style={{ color: '#ef4444', marginLeft: 4 }}>-{totalDeletions}</span>
+              <div
+                style={{
+                  padding: '10px 18px',
+                  borderBottom: `1px solid ${colors.steel}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontFamily: fonts.mono,
+                  fontSize: 10.5,
+                  letterSpacing: '0.08em',
+                }}
+              >
+                <span style={{ color: colors.smoke }}>
+                  {files.length} {files.length === 1 ? 'FILE' : 'FILES'}
+                </span>
+                <span style={{ color: colors.steel }}>·</span>
+                <span style={{ color: colors.patina }}>+{totalAdditions}</span>
+                <span style={{ color: colors.rust }}>−{totalDeletions}</span>
               </div>
               {files.map(f => (
                 <div
                   key={f.path}
                   onClick={() => handleFileClick(f.path)}
                   style={{
-                    padding: '8px 16px', cursor: 'pointer', fontSize: 12, display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    borderBottom: '1px solid #1a1d2a',
-                    background: selectedFile === f.path ? '#1e3a5f' : 'transparent',
-                    color: selectedFile === f.path ? '#e2e8f0' : '#9ca3af',
+                    padding: '8px 18px',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    borderBottom: `1px solid ${colors.steel}33`,
+                    background: selectedFile === f.path ? colors.coal : 'transparent',
+                    color: selectedFile === f.path ? colors.ivory : colors.bone,
+                    position: 'relative',
+                    transition: 'background 0.12s ease',
                   }}
+                  onMouseEnter={(e) => { if (selectedFile !== f.path) e.currentTarget.style.background = `${colors.coal}60` }}
+                  onMouseLeave={(e) => { if (selectedFile !== f.path) e.currentTarget.style.background = 'transparent' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                    <span style={{
-                      display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                      background: STATUS_COLORS[f.status] || '#6b7280', flexShrink: 0,
-                    }} />
-                    <span style={{
-                      color: '#e2e8f0', fontWeight: selectedFile === f.path ? 600 : 400,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>{f.path}</span>
+                  {selectedFile === f.path && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 0, top: 4, bottom: 4,
+                        width: 2,
+                        background: colors.accent,
+                      }}
+                    />
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: STATUS_COLOR[f.status] || colors.ash,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontFamily: fonts.mono,
+                        fontSize: 12,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        letterSpacing: '-0.005em',
+                      }}
+                    >
+                      {f.path}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    {f.additions > 0 && <span style={{ color: '#22c55e', fontSize: 11 }}>+{f.additions}</span>}
-                    {f.deletions > 0 && <span style={{ color: '#ef4444', fontSize: 11 }}>-{f.deletions}</span>}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      flexShrink: 0,
+                      fontFamily: fonts.mono,
+                      fontSize: 10.5,
+                    }}
+                  >
+                    {f.additions > 0 && <span style={{ color: colors.patina }}>+{f.additions}</span>}
+                    {f.deletions > 0 && <span style={{ color: colors.rust }}>−{f.deletions}</span>}
                   </div>
                 </div>
               ))}
@@ -343,8 +502,18 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
       {view === 'history' && !selectedCommit && (
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {!error && commits.length === 0 && !loading && (
-            <div style={{ color: '#374151', padding: '40px 16px', textAlign: 'center', fontSize: 13 }}>
-              No commit history.
+            <div
+              style={{
+                color: colors.ash,
+                padding: '40px 16px',
+                textAlign: 'center',
+                fontSize: 12,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              No history yet
             </div>
           )}
           {commits.map(c => (
@@ -355,28 +524,59 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
 
       {view === 'history' && selectedCommit && (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ padding: '8px 16px', borderBottom: '1px solid #1e2235' }}>
+          <div
+            style={{
+              padding: '10px 18px',
+              borderBottom: `1px solid ${colors.steel}`,
+              background: colors.coal,
+            }}
+          >
             <button
               onClick={() => { setSelectedCommit(null); setCommitDiff('') }}
               style={{
-                background: 'transparent', border: 'none', color: '#60a5fa',
-                cursor: 'pointer', fontSize: 12, padding: 0, textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                color: colors.accent,
+                cursor: 'pointer',
+                fontSize: 11,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                padding: 0,
               }}
             >
-              &larr; Back to history
+              ← Back to history
             </button>
           </div>
           {commitDiffLines.map((line, i) => (
-            <div key={i} style={{
-              padding: '0 16px', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-              lineHeight: 1.5, fontSize: 12, ...LINE_STYLE[line.type],
-            }}>
+            <div
+              key={i}
+              style={{
+                padding: '0 18px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                lineHeight: 1.6,
+                fontSize: 11.5,
+                fontFamily: fonts.mono,
+                ...LINE_STYLE[line.type],
+              }}
+            >
               {line.content || '\u00a0'}
             </div>
           ))}
           {commitDiff === '' && !commitLoading && (
-            <div style={{ color: '#374151', padding: '40px 16px', textAlign: 'center', fontSize: 13 }}>
-              No diff for this commit.
+            <div
+              style={{
+                color: colors.ash,
+                padding: '40px 16px',
+                textAlign: 'center',
+                fontSize: 12,
+                fontFamily: fonts.mono,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              No diff for this commit
             </div>
           )}
         </div>
@@ -393,6 +593,43 @@ export default function DiffViewer({ workspaceId, onSwitchToPR }: Props) {
         />
       )}
     </div>
+  )
+}
+
+function SubTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        padding: '10px 14px 11px',
+        border: 'none',
+        cursor: 'pointer',
+        background: 'transparent',
+        color: active ? colors.cream : colors.ash,
+        fontSize: 10.5,
+        fontFamily: fonts.mono,
+        fontWeight: active ? 600 : 500,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        transition: 'color 0.12s ease',
+      }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = colors.bone }}
+      onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = colors.ash }}
+    >
+      {label}
+      {active && (
+        <span
+          style={{
+            position: 'absolute',
+            left: 14, right: 14, bottom: -1,
+            height: 1,
+            background: colors.accent,
+            boxShadow: `0 0 6px var(--accent)`,
+          }}
+        />
+      )}
+    </button>
   )
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { forge } from '../lib/tauri'
 import { open } from '@tauri-apps/plugin-dialog'
+import { colors, fonts, displayItalic, labelStyle } from '../theme'
 
 type Mode = 'local' | 'clone'
 
@@ -10,12 +11,12 @@ export default function AddRepoModal({
   onClose: () => void
   onAdded: () => void
 }) {
-  const [mode, setMode]         = useState<Mode>('local')
+  const [mode, setMode]           = useState<Mode>('local')
   const [localPath, setLocalPath] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
-  const [cloneTo, setCloneTo]   = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [cloneTo, setCloneTo]     = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
 
   const pickFolder = async () => {
     const selected = await open({ directory: true, multiple: false })
@@ -44,29 +45,90 @@ export default function AddRepoModal({
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-    }}>
-      <div style={{
-        background: '#1a1c24', border: '1px solid #2d3148', borderRadius: 12,
-        padding: 24, width: 420, color: '#d1d5db', fontFamily: 'Inter, sans-serif',
-      }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, color: '#fff' }}>Add Repository</h2>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        animation: 'forge-fade-in 0.18s ease',
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="forge-rise"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.iron,
+          border: `1px solid ${colors.steelHi}`,
+          borderRadius: 10,
+          padding: 32,
+          width: 460,
+          color: colors.ivory,
+          fontFamily: fonts.body,
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 0, left: 28, right: 28, height: 1,
+            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
+            opacity: 0.5,
+          }}
+        />
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={labelStyle}>Add to the floor</div>
+        <h2
+          style={{
+            ...displayItalic,
+            margin: '4px 0 18px',
+            fontSize: 28,
+            color: colors.cream,
+            letterSpacing: '-0.015em',
+          }}
+        >
+          Mount a repository
+        </h2>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 0,
+            marginBottom: 18,
+            background: colors.coal,
+            borderRadius: 4,
+            padding: 3,
+            border: `1px solid ${colors.steel}`,
+          }}
+        >
           {(['local', 'clone'] as Mode[]).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
               style={{
-                flex: 1, padding: '6px 0', fontSize: 13, cursor: 'pointer',
-                border: 'none', borderRadius: 6,
-                background: mode === m ? '#2563eb' : '#23263a',
-                color: mode === m ? '#fff' : '#9ca3af',
+                flex: 1,
+                padding: '7px 0',
+                fontSize: 11,
+                fontFamily: fonts.mono,
+                fontWeight: 600,
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                border: 'none',
+                borderRadius: 3,
+                background: mode === m ? colors.iron : 'transparent',
+                color: mode === m ? colors.accent : colors.ash,
+                boxShadow: mode === m ? `0 0 0 1px ${colors.steelHi}, 0 1px 0 rgba(0,0,0,0.4)` : 'none',
+                transition: 'all 0.12s ease',
               }}
             >
-              {m === 'local' ? 'Local Path' : 'Clone from GitHub'}
+              {m === 'local' ? 'Local path' : 'Clone from GitHub'}
             </button>
           ))}
         </div>
@@ -74,62 +136,69 @@ export default function AddRepoModal({
         {mode === 'local' ? (
           <div style={{ display: 'flex', gap: 8 }}>
             <input
+              className="forge-input"
               value={localPath}
               onChange={e => setLocalPath(e.target.value)}
               placeholder="/path/to/your/repo"
-              style={inputStyle}
             />
-            <button onClick={pickFolder} style={btnSecondary}>Browse</button>
+            <button className="btn-ghost" onClick={pickFolder}>Browse</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
+              className="forge-input"
               value={githubUrl}
               onChange={e => setGithubUrl(e.target.value)}
               placeholder="https://github.com/owner/repo"
-              style={inputStyle}
             />
             <div style={{ display: 'flex', gap: 8 }}>
               <input
+                className="forge-input"
                 value={cloneTo}
                 onChange={e => setCloneTo(e.target.value)}
-                placeholder="Clone into folder..."
-                style={inputStyle}
+                placeholder="Clone into folder…"
               />
-              <button onClick={pickFolder} style={btnSecondary}>Browse</button>
+              <button className="btn-ghost" onClick={pickFolder}>Browse</button>
             </div>
           </div>
         )}
 
         {error && (
-          <p style={{ color: '#ef4444', fontSize: 12, margin: '8px 0 0' }}>{error}</p>
+          <p
+            style={{
+              color: colors.rust,
+              fontSize: 12,
+              margin: '12px 0 0',
+              background: 'rgba(208,90,62,0.06)',
+              border: `1px solid rgba(208,90,62,0.2)`,
+              padding: '8px 10px',
+              borderRadius: 4,
+            }}
+          >
+            {error}
+          </p>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={btnSecondary}>Cancel</button>
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            marginTop: 24,
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button className="btn-ghost" onClick={onClose} disabled={loading}>
+            Cancel
+          </button>
           <button
+            className="btn-strike"
             onClick={handleSubmit}
             disabled={loading}
-            style={{ ...btnPrimary, opacity: loading ? 0.6 : 1 }}
           >
-            {loading ? 'Adding...' : mode === 'local' ? 'Add Repository' : 'Clone & Add'}
+            {loading ? 'Mounting…' : mode === 'local' ? 'Add repository' : 'Clone & add'}
           </button>
         </div>
       </div>
     </div>
   )
-}
-
-const inputStyle: React.CSSProperties = {
-  flex: 1, background: '#111318', border: '1px solid #374151',
-  borderRadius: 6, color: '#d1d5db', padding: '7px 10px', fontSize: 13,
-  outline: 'none',
-}
-const btnPrimary: React.CSSProperties = {
-  background: '#2563eb', border: 'none', color: '#fff',
-  borderRadius: 6, padding: '7px 16px', fontSize: 13, cursor: 'pointer',
-}
-const btnSecondary: React.CSSProperties = {
-  background: '#23263a', border: '1px solid #374151', color: '#9ca3af',
-  borderRadius: 6, padding: '7px 12px', fontSize: 13, cursor: 'pointer',
 }
