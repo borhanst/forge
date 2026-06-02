@@ -55,7 +55,7 @@ pub fn resolve_shell_env() -> HashMap<String, String> {
         if let Some(v) = versions.last() {
             let nvm_path = format!("{}/{}/bin", nvm_dir, v);
             let current_path = env.get("PATH").cloned().unwrap_or_default();
-            let new_path = format!("{}:{}/bin:{}/.local/bin:{}", nvm_path, home, home, current_path);
+            let new_path = format!("{}:{}/bin:{}/.local/bin:{}/.npm-global/bin:{}", nvm_path, home, home, home, current_path);
             env.insert("PATH".to_string(), new_path);
             tracing::info!("Enhanced fallback PATH with nvm: {}", nvm_path);
         }

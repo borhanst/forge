@@ -67,19 +67,33 @@ pub fn check_binary_in_shell(binary: &str, shell_path: &str) -> bool {
     });
     let escaped = format!("'{}'", binary.replace('\'', "'\\''"));
 
-    std::process::Command::new(&shell)
+    if std::process::Command::new(&shell)
         .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
         .env("PATH", shell_path)
         .output()
         .map(|o| o.status.success())
-        .unwrap_or_else(|_| {
-            std::process::Command::new("sh")
-                .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
-                .env("PATH", shell_path)
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        })
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    if std::process::Command::new("sh")
+        .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
+        .env("PATH", shell_path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    let fallback_paths = vec![
+        format!("{}/.npm-global/bin/{}", home, binary),
+        format!("{}/.local/bin/{}", home, binary),
+        format!("/usr/local/bin/{}", binary),
+    ];
+    fallback_paths.iter().any(|p| std::path::Path::new(p).exists())
 }
 
 /// Resolve a binary name to its absolute path via the user's shell.
