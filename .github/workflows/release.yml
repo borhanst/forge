@@ -10,8 +10,6 @@ jobs:
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.platform }}
-    env:
-      SQLX_OFFLINE: true
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +34,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Initialize SQLite database
+        run: sqlite3 /tmp/forge.db < src-tauri/schema.sql
 
       - name: Build and publish Tauri app
         uses: tauri-apps/tauri-action@v0
