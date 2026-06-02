@@ -482,6 +482,165 @@ pub fn get_commit_diff(worktree_path: &str, commit_hash: &str) -> Result<String>
     Ok(output)
 }
 
+/// Merge `source_branch` into `target_branch` without touching the **main repo's**
+/// working tree (this is the property that keeps Vite HMR from reloading during a merge).
+///
+/// Implementation: the merge is performed inside `worktree_path`, which is briefly
+/// flipped to a throwaway branch `__forge_target_<target>` and then restored to
+/// `source_branch`. The resulting commit is imported back into `main_repo_path`
+/// via `git fetch <worktree_path> refs/heads/<tmp>:refs/forge-tmp/<target>` followed
+/// by `git update-ref refs/heads/<target>` — the main repo's HEAD/working tree is
+/// never checked out or touched.
+///
+/// Requires the worktree to have no uncommitted changes (callers should verify
+/// this upstream via `get_changed_files`). Works with or without an `origin` remote.
+/// Returns the list of conflicted file paths (empty Vec on a successful merge).
+pub fn merge_into_branch_no_checkout(
+    main_repo_path: &str,
+    worktree_path: &str,
+    source_branch: &str,
+    target_branch: &str,
+) -> Result<Vec<String>> {
+    // Fetch the target branch from the main repo into the worktree clone
+    let fetch_out = Command::new("git")
+        .args(["-C", worktree_path, "fetch", "origin", target_branch])
+        .output()
+        .context("Failed to fetch target branch")?;
+    if !fetch_out.status.success() {
+        // origin may be the local main repo path — try fetching directly
+        let fetch_out2 = Command::new("git")
+            .args(["-C", worktree_path, "fetch", main_repo_path, target_branch])
+            .output()
+            .context("Failed to fetch target branch from main repo")?;
+        if !fetch_out2.status.success() {
+            return Err(anyhow::anyhow!(
+                "fetch target branch failed: {}",
+                String::from_utf8_lossy(&fetch_out2.stderr).trim()
+            ));
+        }
+    }
+
+    // Create/reset a local tracking branch for target in the worktree
+    let track_ref = format!("refs/heads/__forge_target_{}", target_branch.replace('/', "_"));
+    let fetch_head = format!("origin/{}", target_branch);
+    // Try origin/target first, fall back to FETCH_HEAD
+    let base_ref = {
+        let check = Command::new("git")
+            .args(["-C", worktree_path, "rev-parse", "--verify", &fetch_head])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if check { fetch_head.clone() } else { "FETCH_HEAD".to_string() }
+    };
+
+    // Reset the temp target branch to the fetched state
+    let update_out = Command::new("git")
+        .args(["-C", worktree_path, "update-ref", &track_ref, &base_ref])
+        .output()
+        .context("Failed to update target ref")?;
+    if !update_out.status.success() {
+        return Err(anyhow::anyhow!(
+            "update-ref failed: {}",
+            String::from_utf8_lossy(&update_out.stderr).trim()
+        ));
+    }
+
+    let tmp_branch = format!("__forge_target_{}", target_branch.replace('/', "_"));
+
+    // Checkout the temp target branch in the worktree
+    let co_out = Command::new("git")
+        .args(["-C", worktree_path, "checkout", &tmp_branch])
+        .output()
+        .context("Failed to checkout temp target branch")?;
+    if !co_out.status.success() {
+        return Err(anyhow::anyhow!(
+            "checkout failed: {}",
+            String::from_utf8_lossy(&co_out.stderr).trim()
+        ));
+    }
+
+    // Merge the forge (source) branch into the temp target branch
+    let merge_out = Command::new("git")
+        .args(["-C", worktree_path, "merge", source_branch])
+        .output()
+        .context("Failed to merge")?;
+
+    if merge_out.status.success() {
+        // Cleanup temp branch first (checkout back to source)
+        let _ = Command::new("git").args(["-C", worktree_path, "checkout", source_branch]).output();
+
+        // Fetch the tmp_branch into a temp ref namespace in the main repo.
+        // refs/forge-tmp/* is never checked out so git allows this fetch unconditionally.
+        let tmp_ref = format!("refs/forge-tmp/{}", target_branch.replace('/', "_"));
+        let fetch_refspec = format!("refs/heads/{}:{}", tmp_branch, tmp_ref);
+        let fetch_out = Command::new("git")
+            .args(["-C", main_repo_path, "fetch", worktree_path, &fetch_refspec])
+            .output()
+            .context("Failed to fetch merge result into main repo")?;
+
+        // Cleanup worktree temp branch
+        let _ = Command::new("git").args(["-C", worktree_path, "branch", "-D", &tmp_branch]).output();
+
+        if !fetch_out.status.success() {
+            return Err(anyhow::anyhow!(
+                "fetch objects failed: {}",
+                String::from_utf8_lossy(&fetch_out.stderr).trim()
+            ));
+        }
+
+        // Now the commit exists in the main repo — point the real branch at it
+        let target_ref = format!("refs/heads/{}", target_branch);
+        let update_out = Command::new("git")
+            .args(["-C", main_repo_path, "update-ref", &target_ref, &tmp_ref])
+            .output()
+            .context("Failed to update branch ref in main repo")?;
+        // Always delete the temp ref
+        let _ = Command::new("git")
+            .args(["-C", main_repo_path, "update-ref", "-d", &tmp_ref])
+            .output();
+        if !update_out.status.success() {
+            return Err(anyhow::anyhow!(
+                "update-ref failed: {}",
+                String::from_utf8_lossy(&update_out.stderr).trim()
+            ));
+        }
+        return Ok(vec![]);
+    }
+
+    let stderr = String::from_utf8_lossy(&merge_out.stderr);
+    if stderr.contains("CONFLICT") || stderr.contains("conflict") {
+        let conflict_out = Command::new("git")
+            .args(["-C", worktree_path, "diff", "--name-only", "--diff-filter=U"])
+            .output()
+            .context("Failed to list conflicted files")?;
+        let files: Vec<String> = String::from_utf8_lossy(&conflict_out.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect();
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "merge", "--abort"])
+            .output();
+        // Cleanup temp branch
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "checkout", source_branch])
+            .output();
+        let _ = Command::new("git")
+            .args(["-C", worktree_path, "branch", "-D", &tmp_branch])
+            .output();
+        return Ok(files);
+    }
+
+    // Cleanup temp branch on error too
+    let _ = Command::new("git")
+        .args(["-C", worktree_path, "checkout", source_branch])
+        .output();
+    let _ = Command::new("git")
+        .args(["-C", worktree_path, "branch", "-D", &tmp_branch])
+        .output();
+    Err(anyhow::anyhow!("Merge failed: {}", stderr.trim()))
+}
+
 pub fn checkout_branch(repo_path: &str, branch_name: &str) -> Result<()> {
     let output = Command::new("git")
         .args(["-C", repo_path, "checkout", branch_name])
@@ -672,7 +831,18 @@ pub fn delete_remote_branch(repo_path: &str, branch_name: &str, token: &str) -> 
 }
 
 /// Push a branch using git CLI (uses user's configured git credentials — SSH, credential helper, etc.)
+/// Returns Ok(()) silently if no remote is configured.
 pub fn push_branch_cli(repo_path: &str, branch_name: &str) -> Result<()> {
+    // Check if a remote named "origin" exists
+    let remote_check = Command::new("git")
+        .args(["-C", repo_path, "remote", "get-url", "origin"])
+        .output()
+        .context("Failed to check remote")?;
+    if !remote_check.status.success() {
+        // No remote — nothing to push to
+        return Ok(());
+    }
+
     let output = Command::new("git")
         .args(["-C", repo_path, "push", "origin", branch_name])
         .output()
@@ -686,7 +856,16 @@ pub fn push_branch_cli(repo_path: &str, branch_name: &str) -> Result<()> {
 }
 
 /// Delete remote branch using git CLI (uses user's configured git credentials)
+/// Silently succeeds if no remote is configured.
 pub fn delete_remote_branch_cli(repo_path: &str, branch_name: &str) -> Result<()> {
+    let remote_check = Command::new("git")
+        .args(["-C", repo_path, "remote", "get-url", "origin"])
+        .output()
+        .context("Failed to check remote")?;
+    if !remote_check.status.success() {
+        return Ok(());
+    }
+
     let output = Command::new("git")
         .args(["-C", repo_path, "push", "origin", "--delete", branch_name])
         .output()
@@ -699,19 +878,41 @@ pub fn delete_remote_branch_cli(repo_path: &str, branch_name: &str) -> Result<()
     Ok(())
 }
 
-/// Push a branch from the worktree to its local origin (the main repo, no auth needed)
+/// Push a branch from the worktree to its local origin (the main repo path, no auth needed)
 pub fn push_local(repo_path: &str, branch_name: &str) -> Result<()> {
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
-    let output = Command::new("git")
+
+    // Try push via origin first
+    let out = Command::new("git")
         .args(["-C", repo_path, "push", "origin", &refspec])
         .output()
         .with_context(|| format!("Failed to push {} to local origin", branch_name))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    if out.status.success() {
+        return Ok(());
+    }
+
+    // Fallback: get the origin URL and push directly to it as a path
+    let url_out = Command::new("git")
+        .args(["-C", repo_path, "remote", "get-url", "origin"])
+        .output()
+        .context("Failed to get origin URL")?;
+
+    if url_out.status.success() {
+        let origin_path = String::from_utf8_lossy(&url_out.stdout).trim().to_string();
+        let out2 = Command::new("git")
+            .args(["-C", repo_path, "push", &origin_path, &refspec])
+            .output()
+            .with_context(|| format!("Failed to push {} to {}", branch_name, origin_path))?;
+        if out2.status.success() {
+            return Ok(());
+        }
+        let stderr = String::from_utf8_lossy(&out2.stderr);
         return Err(anyhow::anyhow!("git push to local origin failed: {}", stderr.trim()));
     }
-    Ok(())
+
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    Err(anyhow::anyhow!("git push to local origin failed: {}", stderr.trim()))
 }
 
 pub fn fetch_branch(repo_path: &str, remote_name: &str, branch_name: &str) -> Result<()> {

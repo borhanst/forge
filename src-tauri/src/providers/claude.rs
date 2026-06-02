@@ -12,14 +12,19 @@ impl AgentProvider for ClaudeProvider {
             display_name: "Claude Code",
             cli_binary: "claude",
             description: "Anthropic Claude Code CLI",
+            supports_model: true,
+            supports_mode: false,
         }
     }
 
-    fn build_command(&self, prompt: &str, _worktree_path: &str, _options: &HashMap<String, String>) -> (String, Vec<String>) {
-        (
-            "claude".to_string(),
-            vec!["--print".to_string(), prompt.to_string()],
-        )
+    fn build_command(&self, prompt: &str, _worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>) {
+        let mut args = vec!["--print".to_string()];
+        if let Some(model) = options.get("model").filter(|m| !m.is_empty()) {
+            args.push("--model".to_string());
+            args.push(model.to_string());
+        }
+        args.push(prompt.to_string());
+        ("claude".to_string(), args)
     }
 
     fn install_options(&self) -> Vec<Vec<String>> {

@@ -12,14 +12,19 @@ impl AgentProvider for CodexProvider {
             display_name: "OpenAI Codex",
             cli_binary: "codex",
             description: "OpenAI Codex CLI agent",
+            supports_model: true,
+            supports_mode: false,
         }
     }
 
-    fn build_command(&self, prompt: &str, _worktree_path: &str, _options: &HashMap<String, String>) -> (String, Vec<String>) {
-        (
-            "codex".to_string(),
-            vec!["--full-auto".to_string(), prompt.to_string()],
-        )
+    fn build_command(&self, prompt: &str, _worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>) {
+        let mut args = vec!["--full-auto".to_string()];
+        if let Some(model) = options.get("model").filter(|m| !m.is_empty()) {
+            args.push("--model".to_string());
+            args.push(model.to_string());
+        }
+        args.push(prompt.to_string());
+        ("codex".to_string(), args)
     }
 
     fn install_options(&self) -> Vec<Vec<String>> {

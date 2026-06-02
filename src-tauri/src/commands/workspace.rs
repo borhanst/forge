@@ -41,6 +41,8 @@ pub async fn list_providers(
                 cli_binary: info.cli_binary.to_string(),
                 description: info.description.to_string(),
                 available: p.is_available_in_shell(&shell_path),
+                supports_model: info.supports_model,
+                supports_mode: info.supports_mode,
             }
         })
         .collect();
@@ -54,6 +56,8 @@ pub struct ProviderInfoDto {
     pub cli_binary: String,
     pub description: String,
     pub available: bool,
+    pub supports_model: bool,
+    pub supports_mode: bool,
 }
 
 #[tauri::command]

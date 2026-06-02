@@ -12,6 +12,8 @@ impl AgentProvider for OpenCodeProvider {
             display_name: "OpenCode",
             cli_binary: "opencode",
             description: "Open-source multi-model coding agent (local or cloud)",
+            supports_model: true,
+            supports_mode: true,
         }
     }
 

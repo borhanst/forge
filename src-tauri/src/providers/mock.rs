@@ -12,6 +12,8 @@ impl AgentProvider for MockProvider {
             display_name: "Mock Agent",
             cli_binary:   "echo",
             description:  "Test agent using echo",
+            supports_model: false,
+            supports_mode: false,
         }
     }
 

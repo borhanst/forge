@@ -12,14 +12,20 @@ impl AgentProvider for OpenClaudeProvider {
             display_name: "OpenClaude",
             cli_binary: "openclaude",
             description: "Open-source Claude CLI — local Ollama or custom endpoint",
+            supports_model: true,
+            supports_mode: false,
         }
     }
 
-    fn build_command(&self, prompt: &str, _worktree_path: &str, _options: &HashMap<String, String>) -> (String, Vec<String>) {
-        (
-            "openclaude".to_string(),
-            vec!["-p".to_string(), prompt.to_string()],
-        )
+    fn build_command(&self, prompt: &str, _worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>) {
+        let mut args: Vec<String> = Vec::new();
+        if let Some(model) = options.get("model").filter(|m| !m.is_empty()) {
+            args.push("--model".to_string());
+            args.push(model.to_string());
+        }
+        args.push("-p".to_string());
+        args.push(prompt.to_string());
+        ("openclaude".to_string(), args)
     }
 
     fn install_options(&self) -> Vec<Vec<String>> {

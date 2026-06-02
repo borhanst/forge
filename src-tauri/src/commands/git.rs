@@ -268,15 +268,13 @@ pub async fn merge_worktree(
         if !exists {
             git_service::push_local(&worktree_path, &forge_branch2)
                 .map_err(|e| format!("Failed to push forge branch to main repo: {}", e))?;
-            git_service::fetch_branch(&main_repo, "origin", &forge_branch2)
-                .map_err(|e| format!("Failed to fetch forge branch: {}", e))?;
         }
 
-        git_service::checkout_branch(&main_repo, &target_branch2)
-            .map_err(|e| format!("Failed to checkout '{}': {}", e, target_branch2))?;
-
-        let conflicted = git_service::merge_branch(&main_repo, &forge_branch2)
-            .map_err(|e| format!("Merge failed: {}", e))?;
+        // Merge without touching the main repo's working tree (prevents Vite HMR reload)
+        let conflicted = git_service::merge_into_branch_no_checkout(
+            &main_repo, &worktree_path, &forge_branch2, &target_branch2,
+        )
+        .map_err(|e| format!("Merge failed: {}", e))?;
 
         if !conflicted.is_empty() {
             return Ok(MergeResult {
@@ -387,20 +385,15 @@ pub async fn resolve_and_finish_merge(
         if !exists {
             git_service::push_local(&worktree_path, &forge_branch)
                 .map_err(|e| format!("Failed to push forge branch: {}", e))?;
-            git_service::fetch_branch(&main_repo, "origin", &forge_branch)
-                .map_err(|e| format!("Failed to fetch forge branch: {}", e))?;
         }
 
-        // Step 2: Checkout target branch
-        git_service::checkout_branch(&main_repo, &target_branch)
-            .map_err(|e| format!("Failed to checkout '{}': {}", e, target_branch))?;
-
-        // Step 3: Merge (no abort — stay in conflicted state)
-        let conflicted = git_service::merge_no_abort(&main_repo, &forge_branch)
-            .map_err(|e| format!("Merge failed: {}", e))?;
+        // Step 2: Try a no-checkout merge first
+        let conflicted = git_service::merge_into_branch_no_checkout(
+            &main_repo, &worktree_path, &forge_branch, &target_branch,
+        )
+        .map_err(|e| format!("Merge failed: {}", e))?;
 
         if conflicted.is_empty() {
-            // No conflicts — just push and cleanup
             if push_to_remote {
                 git_service::push_branch_cli(&main_repo, &target_branch)
                     .map_err(|e| format!("Failed to push: {}", e))?;
@@ -412,15 +405,30 @@ pub async fn resolve_and_finish_merge(
             });
         }
 
-        // Step 4: Run the agent to resolve conflicts
+        // Conflicts exist — run agent in a temp worktree (never touch main repo working tree)
+        let tmp_dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let tmp_path = tmp_dir.path().to_str().unwrap().to_string();
+
+        let clone_out = std::process::Command::new("git")
+            .args(["clone", "--local", &main_repo, &tmp_path])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !clone_out.status.success() {
+            return Err(format!("clone failed: {}", String::from_utf8_lossy(&clone_out.stderr).trim()));
+        }
+
+        // Checkout target branch and merge forge branch in the temp clone
+        git_service::checkout_branch(&tmp_path, &target_branch)
+            .map_err(|e| format!("checkout in temp clone failed: {}", e))?;
+        let _ = git_service::merge_no_abort(&tmp_path, &forge_branch);
+
+        // Run agent to resolve conflicts in the temp clone
         let provider = crate::providers::get_provider(&provider_id)
             .ok_or_else(|| format!("Unknown provider: {}", provider_id))?;
-
         let options: std::collections::HashMap<String, String> = provider_config
             .as_ref()
             .and_then(|c| serde_json::from_str(c).ok())
             .unwrap_or_default();
-
         let prompt = format!(
             "Resolve all merge conflicts in this repository. \
              Conflicted files: {}. \
@@ -428,35 +436,25 @@ pub async fn resolve_and_finish_merge(
              Do NOT commit — I will handle that.",
             conflicted.join(", ")
         );
-
-        let (binary, args) = provider.build_command(&prompt, &main_repo, &options);
-
+        let (binary, args) = provider.build_command(&prompt, &tmp_path, &options);
         let resolved_path = crate::providers::resolve_binary_path(&binary, &std::env::var("PATH").unwrap_or_default())
             .ok_or_else(|| format!("{} CLI not found on PATH", binary))?;
-
         let agent_output = std::process::Command::new(&resolved_path)
             .args(&args)
-            .current_dir(&main_repo)
+            .current_dir(&tmp_path)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .output()
             .map_err(|e| format!("Failed to spawn agent: {}", e))?;
-
         if !agent_output.status.success() {
-            let stderr = String::from_utf8_lossy(&agent_output.stderr);
-            tracing::warn!("Conflict resolution agent exited with non-zero: {}", stderr.trim());
-            // Continue anyway — agent may have partially resolved
+            tracing::warn!("Conflict resolution agent exited with non-zero: {}",
+                String::from_utf8_lossy(&agent_output.stderr).trim());
         }
 
-        // Step 5: Stage all resolved files
-        let _ = git_service::stage_all(&main_repo);
-
-        // Step 6: Check if any conflicts remain
-        let remaining = git_service::list_unmerged_files(&main_repo).unwrap_or_default();
-
+        let _ = git_service::stage_all(&tmp_path);
+        let remaining = git_service::list_unmerged_files(&tmp_path).unwrap_or_default();
         if !remaining.is_empty() {
-            // Conflicts remain — abort
-            let _ = git_service::abort_merge(&main_repo);
+            let _ = git_service::abort_merge(&tmp_path);
             return Ok(MergeResult {
                 success: false,
                 conflicted_files: remaining,
@@ -464,17 +462,36 @@ pub async fn resolve_and_finish_merge(
             });
         }
 
-        // Step 7: Commit the resolution
-        let _ = git_service::commit(&main_repo, "resolve merge conflicts")
+        let _ = git_service::commit(&tmp_path, "resolve merge conflicts")
             .map_err(|e| format!("Failed to commit resolution: {}", e))?;
 
-        // Step 8: Push if needed
+        // Fetch the resolved branch into a temp ref in the main repo (imports objects),
+        // then update-ref the real branch. refs/forge-tmp/* is never checked out.
+        let tmp_ref = format!("refs/forge-tmp/{}", target_branch.replace('/', "_"));
+        let fetch_refspec = format!("refs/heads/{}:{}", target_branch, tmp_ref);
+        let fetch_back = std::process::Command::new("git")
+            .args(["-C", &main_repo, "fetch", &tmp_path, &fetch_refspec])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !fetch_back.status.success() {
+            return Err(format!("fetch objects failed: {}", String::from_utf8_lossy(&fetch_back.stderr).trim()));
+        }
+        let target_ref = format!("refs/heads/{}", target_branch);
+        let update_out = std::process::Command::new("git")
+            .args(["-C", &main_repo, "update-ref", &target_ref, &tmp_ref])
+            .output()
+            .map_err(|e| e.to_string())?;
+        let _ = std::process::Command::new("git")
+            .args(["-C", &main_repo, "update-ref", "-d", &tmp_ref])
+            .output();
+        if !update_out.status.success() {
+            return Err(format!("update-ref failed: {}", String::from_utf8_lossy(&update_out.stderr).trim()));
+        }
+
         if push_to_remote {
             git_service::push_branch_cli(&main_repo, &target_branch2)
                 .map_err(|e| format!("Failed to push: {}", e))?;
         }
-
-        // Step 9: Cleanup
         if cleanup_mode == "delete" {
             let _ = git_service::delete_local_branch(&main_repo, &forge_branch2);
             let _ = git_service::delete_remote_branch_cli(&main_repo, &forge_branch2);

@@ -34,6 +34,8 @@ export interface ProviderInfo {
   cli_binary: string
   description: string
   available: boolean
+  supports_model: boolean
+  supports_mode: boolean
 }
 
 export interface Session {

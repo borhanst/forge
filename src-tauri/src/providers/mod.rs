@@ -1,6 +1,7 @@
 pub mod claude;
 pub mod codex;
 pub mod gemini;
+pub mod kilo;
 pub mod mock;
 pub mod opencode;
 pub mod openclaude;
@@ -14,6 +15,10 @@ pub struct ProviderInfo {
     pub display_name: &'static str,
     pub cli_binary: &'static str,
     pub description: &'static str,
+    /// Whether this provider supports a --model flag
+    pub supports_model: bool,
+    /// Whether this provider supports a mode/agent flag
+    pub supports_mode: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -34,28 +39,7 @@ pub trait AgentProvider: Send + Sync {
 
     /// Check availability using the resolved shell PATH (catches nvm/pyenv binaries)
     fn is_available_in_shell(&self, shell_path: &str) -> bool {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| {
-            #[cfg(target_os = "macos")]
-            { "/bin/zsh".to_string() }
-            #[cfg(not(target_os = "macos"))]
-            { "/bin/bash".to_string() }
-        });
-        let binary = self.info().cli_binary;
-        let escaped = format!("'{}'", binary.replace('\'', "'\\''"));
-
-        std::process::Command::new(&shell)
-            .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
-            .env("PATH", shell_path)
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or_else(|_| {
-                std::process::Command::new("sh")
-                    .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
-                    .env("PATH", shell_path)
-                    .output()
-                    .map(|o| o.status.success())
-                    .unwrap_or(false)
-            })
+        check_binary_in_shell(self.info().cli_binary, shell_path)
     }
 
     fn build_command(&self, prompt: &str, worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>);
@@ -71,9 +55,41 @@ pub trait AgentProvider: Send + Sync {
     }
 }
 
+/// Check whether `binary` is on the user's shell PATH.
+/// Extracted from the `AgentProvider::is_available_in_shell` default body so that
+/// overrides can fall back to it without recursing into themselves.
+pub fn check_binary_in_shell(binary: &str, shell_path: &str) -> bool {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| {
+        #[cfg(target_os = "macos")]
+        { "/bin/zsh".to_string() }
+        #[cfg(not(target_os = "macos"))]
+        { "/bin/bash".to_string() }
+    });
+    let escaped = format!("'{}'", binary.replace('\'', "'\\''"));
+
+    std::process::Command::new(&shell)
+        .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
+        .env("PATH", shell_path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or_else(|_| {
+            std::process::Command::new("sh")
+                .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
+                .env("PATH", shell_path)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        })
+}
+
 /// Resolve a binary name to its absolute path via the user's shell.
 /// Returns None if the binary cannot be found on PATH.
 pub fn resolve_binary_path(binary: &str, shell_path: &str) -> Option<String> {
+    // If already an absolute path, return it directly if the file exists
+    if binary.starts_with('/') {
+        return if std::path::Path::new(binary).exists() { Some(binary.to_string()) } else { None };
+    }
+
     let shell = std::env::var("SHELL").unwrap_or_else(|_| {
         #[cfg(target_os = "macos")]
         { "/bin/zsh".to_string() }
@@ -130,6 +146,7 @@ pub fn all_providers() -> Vec<Box<dyn AgentProvider>> {
         Box::new(claude::ClaudeProvider),
         Box::new(codex::CodexProvider),
         Box::new(gemini::GeminiProvider),
+        Box::new(kilo::KiloProvider),
         Box::new(opencode::OpenCodeProvider),
         Box::new(openclaude::OpenClaudeProvider),
         Box::new(mock::MockProvider),
