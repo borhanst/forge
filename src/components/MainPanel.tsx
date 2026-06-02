@@ -22,6 +22,7 @@ export function MainPanel() {
     activeWorkspaceId,
     setAgentOutput,
     runningAgents,
+    rightPanelOpen,
   } = useForgeStore()
 
   const ws = workspaces.find((w) => w.id === activeWorkspaceId)
@@ -169,7 +170,7 @@ export function MainPanel() {
         <PromptInput workspaceId={ws.id} />
       </div>
 
-      <RightPanel workspaceId={ws.id} />
+      {rightPanelOpen && <RightPanel workspaceId={ws.id} />}
     </div>
   )
 }

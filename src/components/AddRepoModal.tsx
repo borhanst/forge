@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import { open } from '@tauri-apps/plugin-dialog'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { useModalEscape } from '../hooks/useModalEscape'
 
 type Mode = 'local' | 'clone'
 
@@ -11,6 +12,9 @@ export default function AddRepoModal({
   onClose: () => void
   onAdded: () => void
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  useModalEscape(rootRef, onClose)
+
   const [mode, setMode]           = useState<Mode>('local')
   const [localPath, setLocalPath] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
@@ -46,6 +50,8 @@ export default function AddRepoModal({
 
   return (
     <div
+      ref={rootRef}
+      data-forge-modal="true"
       style={{
         position: 'fixed',
         inset: 0,

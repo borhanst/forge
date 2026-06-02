@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { useModalEscape } from '../hooks/useModalEscape'
 
 interface ConfirmOptions {
   title:       string
@@ -21,6 +22,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 
 export function ConfirmDialogHost() {
   const [state, set] = useState<{ open: boolean; opts: ConfirmOptions | null }>({ open: false, opts: null })
+  const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setState = set
@@ -35,11 +37,15 @@ export function ConfirmDialogHost() {
     set({ open: false, opts: null })
   }
 
+  useModalEscape(rootRef, () => close(false))
+
   const opts = state.opts
   const isDestructive = opts.destructive
 
   return (
     <div
+      ref={rootRef}
+      data-forge-modal="true"
       style={{
         position: 'fixed',
         inset: 0,

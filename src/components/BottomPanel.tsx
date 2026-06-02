@@ -3,6 +3,9 @@ import { Terminal } from './Terminal'
 import { TerminalShell } from './TerminalShell'
 import { forge } from '../lib/tauri'
 import { colors, fonts } from '../theme'
+import { Kbd } from './Kbd'
+import { isMac } from '../lib/shortcuts'
+import { useForgeStore } from '../store'
 
 interface Props {
   workspaceId: string
@@ -12,6 +15,7 @@ type Tab = 'agent' | 'shell'
 
 export function BottomPanel({ workspaceId }: Props) {
   const [tab, setTab] = useState<Tab>('agent')
+  const showKeyboardHints = useForgeStore(s => s.settings.general.showKeyboardHints)
 
   useEffect(() => {
     let cancelled = false
@@ -21,6 +25,12 @@ export function BottomPanel({ workspaceId }: Props) {
     })
     return () => { cancelled = true }
   }, [workspaceId])
+
+  useEffect(() => {
+    const onToggle = () => setTab(t => t === 'agent' ? 'shell' : 'agent')
+    window.addEventListener('forge:toggle-bottom-tab', onToggle)
+    return () => window.removeEventListener('forge:toggle-bottom-tab', onToggle)
+  }, [])
 
   return (
     <div
@@ -49,6 +59,7 @@ export function BottomPanel({ workspaceId }: Props) {
           <Tab
             key={t.id}
             label={t.label}
+            hint={showKeyboardHints ? (isMac() ? '⌘J' : 'Ctrl+J') : undefined}
             active={tab === t.id}
             onClick={() => setTab(t.id)}
           />
@@ -71,7 +82,7 @@ export function BottomPanel({ workspaceId }: Props) {
   )
 }
 
-function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function Tab({ label, hint, active, onClick }: { label: string; hint?: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -88,11 +99,15 @@ function Tab({ label, active, onClick }: { label: string; active: boolean; onCli
         letterSpacing: '0.18em',
         textTransform: 'uppercase',
         transition: 'color 0.12s ease',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
       }}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = colors.bone }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = colors.ash }}
     >
-      {label}
+      <span>{label}</span>
+      {hint && <span style={{ opacity: 0.5, letterSpacing: 0 }}><Kbd size="sm">{hint}</Kbd></span>}
       {active && (
         <span
           style={{

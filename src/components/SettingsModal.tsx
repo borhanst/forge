@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useRef } from 'react'
 import { useForgeStore, type SettingsTabId } from '../store'
 import { colors, fonts, labelStyle, displayItalic } from '../theme'
+import { useModalEscape } from '../hooks/useModalEscape'
 import { GeneralSection } from './settings/GeneralSection'
 import { ThemeSection } from './settings/ThemeSection'
 import { AgentsSection } from './settings/AgentsSection'
@@ -19,20 +20,16 @@ export default function SettingsModal() {
   const open           = useForgeStore(s => s.settingsOpen)
   const initialTab     = useForgeStore(s => s.settingsInitialTab)
   const close          = useForgeStore(s => s.closeSettings)
+  const rootRef        = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, close])
+  useModalEscape(rootRef, close)
 
   if (!open) return null
 
   return (
     <div
+      ref={rootRef}
+      data-forge-modal="true"
       style={{
         position: 'fixed',
         inset: 0,

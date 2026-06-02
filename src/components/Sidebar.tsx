@@ -3,7 +3,9 @@ import { forge, forgeEvents } from '../lib/tauri'
 import { useForgeStore } from '../store'
 import type { Workspace, ProviderInfo } from '../lib/tauri'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { isMac } from '../lib/shortcuts'
 import { AnvilMark, ChevronMark, GearMark } from './Marks'
+import { Kbd } from './Kbd'
 import AddRepoModal from './AddRepoModal'
 import InstallModal from './InstallModal'
 import MergeModal from './MergeModal'
@@ -38,14 +40,18 @@ export default function Sidebar() {
     activeRepoId, setActiveRepo,
     runningAgents,
     openSettings,
+    addRepoModalOpen, openAddRepoModal, closeAddRepoModal,
   } = useForgeStore()
   const confirmBeforeArchive = useForgeStore(s => s.settings.general.confirmBeforeArchive)
   const confirmBeforeDelete  = useForgeStore(s => s.settings.general.confirmBeforeDelete)
+  const showKeyboardHints    = useForgeStore(s => s.settings.general.showKeyboardHints)
 
-  const [showAddRepo, setShowAddRepo]     = useState(false)
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set())
   const [updateProviderWsId, setUpdateProviderWsId] = useState<string | null>(null)
   const [mergeWsId, setMergeWsId] = useState<string | null>(null)
+
+  const showAddRepo = addRepoModalOpen
+  const setShowAddRepo = (v: boolean) => v ? openAddRepoModal() : closeAddRepoModal()
 
   const loadData = async () => {
     try {
@@ -176,7 +182,7 @@ export default function Sidebar() {
 
         <button
           onClick={() => setShowAddRepo(true)}
-          title="Add repository"
+          title="Add repository (⌘N)"
           aria-label="Add repository"
           style={{
             background: 'transparent',
@@ -378,7 +384,7 @@ export default function Sidebar() {
       >
         <button
           onClick={() => openSettings('general')}
-          title="Settings"
+          title="Settings (⌘,)"
           aria-label="Open settings"
           style={{
             display: 'flex',
@@ -405,17 +411,52 @@ export default function Sidebar() {
         >
           <GearMark size={13} />
           <span>Settings</span>
+          {showKeyboardHints && (
+            <span style={{ marginLeft: 4, opacity: 0.6 }}>
+              <Kbd>{isMac() ? '⌘,' : 'Ctrl+,'}</Kbd>
+            </span>
+          )}
         </button>
-        <span
-          style={{
-            color: colors.steel,
-            fontFamily: fonts.mono,
-            fontSize: 10,
-            letterSpacing: '0.12em',
-          }}
-        >
-          v0.1
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span
+            style={{
+              color: colors.steel,
+              fontFamily: fonts.mono,
+              fontSize: 10,
+              letterSpacing: '0.12em',
+            }}
+          >
+            v0.1
+          </span>
+          <button
+            onClick={() => useForgeStore.getState().openShortcuts()}
+            title="Keyboard shortcuts (?)"
+            aria-label="Show keyboard shortcuts"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: 'transparent',
+              border: 'none',
+              color: colors.bone,
+              padding: '4px 6px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              transition: 'background 0.12s ease, color 0.12s ease',
+              fontFamily: fonts.mono,
+              fontSize: 11,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = colors.coal
+              e.currentTarget.style.setProperty('color', 'var(--accent)')
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = colors.bone
+            }}
+          >
+            <Kbd>?</Kbd>
+          </button>
+        </div>
       </div>
 
       {showAddRepo && (

@@ -7,6 +7,8 @@ import { useForgeStore } from '../store'
 import { forge } from '../lib/tauri'
 import type { ProviderInfo } from '../lib/tauri'
 import { colors, fonts, labelStyle } from '../theme'
+import { Kbd } from './Kbd'
+import { isMac } from '../lib/shortcuts'
 
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
   opencode: [
@@ -82,6 +84,15 @@ export default function RightPanel({ workspaceId }: Props) {
   const [installProvider, setInstallProvider] = useState<ProviderInfo | null>(null)
   const { status } = useGitStatus(workspaceId)
   const { workspaces, providers, setWorkspaces, setProviders } = useForgeStore()
+
+  useEffect(() => {
+    const onSetTab = (e: Event) => {
+      const detail = (e as CustomEvent<Tab>).detail
+      if (detail === 'diff' || detail === 'pr' || detail === 'settings') setTab(detail)
+    }
+    window.addEventListener('forge:set-right-tab', onSetTab)
+    return () => window.removeEventListener('forge:set-right-tab', onSetTab)
+  }, [])
 
   const ws = workspaces.find(w => w.id === workspaceId)
 
@@ -163,11 +174,11 @@ export default function RightPanel({ workspaceId }: Props) {
         }}
       >
         {([
-          { id: 'diff',     label: `Changes${status?.changed_count ? ` · ${status.changed_count}` : ''}` },
-          { id: 'pr',       label: 'Ship' },
-          { id: 'settings', label: 'Forge' },
-        ] as { id: Tab; label: string }[]).map(t => (
-          <RightTab key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />
+          { id: 'diff',     label: `Changes${status?.changed_count ? ` · ${status.changed_count}` : ''}`, hint: isMac() ? '⇧⌘D' : 'Ctrl+Shift+D' },
+          { id: 'pr',       label: 'Ship', hint: isMac() ? '⇧⌘P' : 'Ctrl+Shift+P' },
+          { id: 'settings', label: 'Forge', hint: isMac() ? '⇧⌘F' : 'Ctrl+Shift+F' },
+        ] as { id: Tab; label: string; hint: string }[]).map(t => (
+          <RightTab key={t.id} label={t.label} hint={t.hint} active={tab === t.id} onClick={() => setTab(t.id)} />
         ))}
       </div>
 
@@ -367,7 +378,8 @@ export default function RightPanel({ workspaceId }: Props) {
   )
 }
 
-function RightTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function RightTab({ label, hint, active, onClick }: { label: string; hint?: string; active: boolean; onClick: () => void }) {
+  const showHints = useForgeStore(s => s.settings.general.showKeyboardHints)
   return (
     <button
       onClick={onClick}
@@ -385,11 +397,20 @@ function RightTab({ label, active, onClick }: { label: string; active: boolean; 
         letterSpacing: '0.18em',
         textTransform: 'uppercase',
         transition: 'color 0.12s ease',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
       }}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = colors.bone }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = colors.ash }}
     >
-      {label}
+      <span>{label}</span>
+      {showHints && hint && (
+        <span style={{ opacity: 0.5, letterSpacing: 0 }}>
+          <Kbd size="sm">{hint}</Kbd>
+        </span>
+      )}
       {active && (
         <span
           style={{

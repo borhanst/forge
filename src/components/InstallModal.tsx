@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import type { ProviderInfo } from '../lib/tauri'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { useModalEscape } from '../hooks/useModalEscape'
 
 export default function InstallModal({
   provider,
@@ -12,6 +13,9 @@ export default function InstallModal({
   onClose: () => void
   onSuccess: () => void
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  useModalEscape(rootRef, onClose)
+
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [done, setDone]       = useState(false)
@@ -41,6 +45,8 @@ export default function InstallModal({
 
   return (
     <div
+      ref={rootRef}
+      data-forge-modal="true"
       style={{
         position: 'fixed',
         inset: 0,

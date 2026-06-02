@@ -27,6 +27,11 @@ interface ForgeStore {
   settingsOpen:      boolean
   settingsInitialTab: SettingsTabId
 
+  sidebarOpen:        boolean
+  rightPanelOpen:     boolean
+  shortcutsOpen:      boolean
+  addRepoModalOpen:   boolean
+
   setRepositories: (repos: Repository[]) => void
   setWorkspaces: (workspaces: Workspace[]) => void
   setProviders: (providers: ProviderInfo[]) => void
@@ -49,6 +54,13 @@ interface ForgeStore {
   patchSettings: (updater: (s: AppSettings) => AppSettings) => void
   openSettings: (tab?: SettingsTabId) => void
   closeSettings: () => void
+
+  toggleSidebar:      () => void
+  toggleRightPanel:   () => void
+  openShortcuts:      () => void
+  closeShortcuts:     () => void
+  openAddRepoModal:   () => void
+  closeAddRepoModal:  () => void
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -67,6 +79,11 @@ export const useForgeStore = create<ForgeStore>((set, get) => ({
   settingsLoaded:     false,
   settingsOpen:       false,
   settingsInitialTab: 'general',
+
+  sidebarOpen:        true,
+  rightPanelOpen:     true,
+  shortcutsOpen:      false,
+  addRepoModalOpen:   false,
 
   setRepositories: (repositories) => set({ repositories }),
   setWorkspaces: (workspaces) => set({ workspaces }),
@@ -130,6 +147,13 @@ export const useForgeStore = create<ForgeStore>((set, get) => ({
     set({ settingsOpen: true, settingsInitialTab: tab ?? 'general' }),
 
   closeSettings: () => set({ settingsOpen: false }),
+
+  toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
+  toggleRightPanel: () => set(s => ({ rightPanelOpen: !s.rightPanelOpen })),
+  openShortcuts: () => set({ shortcutsOpen: true }),
+  closeShortcuts: () => set({ shortcutsOpen: false }),
+  openAddRepoModal: () => set({ addRepoModalOpen: true }),
+  closeAddRepoModal: () => set({ addRepoModalOpen: false }),
 }))
 
 function scheduleSave(settings: AppSettings) {

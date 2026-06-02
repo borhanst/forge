@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import { useForgeStore } from '../store'
 import { colors, fonts, labelStyle } from '../theme'
+import { Kbd } from './Kbd'
 
 interface Props {
   workspaceId: string
@@ -41,6 +42,20 @@ export function PromptInput({ workspaceId }: Props) {
     try { await forge.stopAgent(workspaceId) }
     catch (e: any) { setError(String(e)) }
   }
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (!isRunning) textareaRef.current?.focus()
+    }
+    window.addEventListener('forge:focus-prompt', onFocus)
+    return () => window.removeEventListener('forge:focus-prompt', onFocus)
+  }, [isRunning])
+
+  useEffect(() => {
+    const onClear = () => clearAgentOutput(workspaceId)
+    window.addEventListener('forge:clear-output', onClear)
+    return () => window.removeEventListener('forge:clear-output', onClear)
+  }, [workspaceId, clearAgentOutput])
 
   return (
     <div
@@ -139,9 +154,14 @@ export function PromptInput({ workspaceId }: Props) {
                 pointerEvents: 'none',
                 opacity: prompt && !isRunning ? 0.9 : 0.4,
                 transition: 'opacity 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              <Kbd>↵</Kbd> strike · <Kbd>⇧↵</Kbd> newline
+              <span><Kbd>⏎</Kbd> strike</span>
+              <span style={{ color: colors.steel }}>·</span>
+              <span><Kbd>⇧⏎</Kbd> newline</span>
             </div>
           )}
         </div>
@@ -232,25 +252,6 @@ export function PromptInput({ workspaceId }: Props) {
         )}
       </div>
     </div>
-  )
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        background: colors.iron,
-        border: `1px solid ${colors.steel}`,
-        borderRadius: 3,
-        padding: '1px 5px',
-        fontSize: 9,
-        color: colors.bone,
-        fontFamily: fonts.mono,
-        letterSpacing: 0,
-      }}
-    >
-      {children}
-    </span>
   )
 }
 

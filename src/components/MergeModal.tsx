@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import type { BranchInfo } from '../lib/tauri'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { useModalEscape } from '../hooks/useModalEscape'
 
 interface Props {
   workspaceId: string
@@ -15,6 +16,9 @@ interface Props {
 export default function MergeModal({
   workspaceId, workspaceName, defaultPush, defaultCleanup, onClose, onMerged,
 }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  useModalEscape(rootRef, onClose)
+
   const [branches, setBranches]   = useState<BranchInfo[]>([])
   const [targetBranch, setTargetBranch] = useState('')
   const [pushToRemote, setPushToRemote] = useState(defaultPush)
@@ -84,6 +88,8 @@ export default function MergeModal({
 
   return (
     <div
+      ref={rootRef}
+      data-forge-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
