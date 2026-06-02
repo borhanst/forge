@@ -28,7 +28,7 @@ impl AgentProvider for CodexProvider {
     }
 
     fn install_options(&self) -> Vec<Vec<String>> {
-        let opts = vec![vec![
+        let mut opts = vec![vec![
             "npm".to_string(),
             "install".to_string(),
             "-g".to_string(),
