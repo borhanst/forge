@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { colors, fonts, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
 
 interface ConfirmOptions {
@@ -69,52 +69,42 @@ export function ConfirmDialogHost() {
         style={{
           background: colors.iron,
           border: `1px solid ${colors.steelHi}`,
-          borderRadius: 10,
-          padding: 26,
+          borderRadius: 12,
+          padding: 24,
           width: 420,
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(208,90,62,0.08)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 24, right: 24, height: 1,
-            background: `linear-gradient(90deg, transparent, ${isDestructive ? colors.rust : colors.accent}, transparent)`,
-            opacity: 0.5,
-          }}
-        />
         <div style={labelStyle}>Confirm</div>
         <h3
           style={{
-            ...displayItalic,
             margin: '4px 0 10px',
-            fontSize: 22,
+            fontFamily: fonts.body,
+            fontSize: 18,
+            fontWeight: 600,
             color: colors.cream,
-            letterSpacing: '-0.015em',
+            letterSpacing: '-0.005em',
           }}
         >
           {opts.title}
         </h3>
-        <p style={{ color: colors.bone, fontSize: 12.5, lineHeight: 1.6, margin: opts.requireText ? '0 0 14px' : '0 0 22px' }}>
+        <p style={{ color: colors.bone, fontSize: 12.5, lineHeight: 1.6, margin: opts.requireText ? '0 0 14px' : '0 0 20px' }}>
           {opts.body}
         </p>
         {opts.requireText && (
           <div style={{ marginBottom: 18 }}>
             <div
               style={{
-                fontFamily: fonts.mono,
-                fontSize: 9.5,
-                fontWeight: 600,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
+                fontFamily: fonts.body,
+                fontSize: 11,
                 color: colors.ash,
                 marginBottom: 6,
               }}
             >
-              Type <span style={{ color: colors.ivory }}>{opts.requireText}</span> to confirm
+              Type <code style={{ color: colors.ivory, background: colors.coal, padding: '1px 6px', borderRadius: 4, fontFamily: fonts.mono, fontSize: 11 }}>{opts.requireText}</code> to confirm
             </div>
             <input
               className="forge-input"
@@ -134,11 +124,11 @@ export function ConfirmDialogHost() {
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn-ghost" onClick={() => close(false)}>
+          <button className="btn-secondary" onClick={() => close(false)}>
             {opts.cancelText ?? 'Cancel'}
           </button>
           <button
-            className={isDestructive ? 'btn-danger' : 'btn-strike'}
+            className={isDestructive ? 'btn-danger' : 'btn-primary'}
             onClick={() => close(true)}
             disabled={!matches}
           >

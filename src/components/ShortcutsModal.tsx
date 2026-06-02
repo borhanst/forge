@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useForgeStore } from '../store'
-import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { colors, fonts, labelStyle } from '../theme'
 import { Kbd } from './Kbd'
 import { formatCombo, isMac, type Shortcut } from '../lib/shortcuts'
 import { useModalEscape } from '../hooks/useModalEscape'
@@ -49,35 +49,31 @@ export default function ShortcutsModal({ shortcuts }: { shortcuts: Shortcut[] })
           background: colors.iron,
           border: `1px solid ${colors.steelHi}`,
           borderRadius: 12,
-          padding: '24px 28px 20px',
+          padding: '22px 26px 18px',
           width: 520,
           maxWidth: '94vw',
           maxHeight: '88vh',
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 28, right: 28, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.5,
-          }}
-        />
+        <button onClick={close} className="modal-close" aria-label="Close" title="Close">
+          ×
+        </button>
         <div style={labelStyle}>Reference</div>
         <h2
           style={{
-            ...displayItalic,
             margin: '4px 0 4px',
-            fontSize: 24,
+            fontFamily: fonts.body,
+            fontSize: 20,
+            fontWeight: 600,
             color: colors.cream,
-            letterSpacing: '-0.015em',
+            letterSpacing: '-0.005em',
           }}
         >
           Keyboard shortcuts
@@ -125,7 +121,7 @@ export default function ShortcutsModal({ shortcuts }: { shortcuts: Shortcut[] })
           <span style={{ ...labelStyle, color: colors.ash, marginRight: 'auto' }}>
             <Kbd>Esc</Kbd> to close
           </span>
-          <button className="btn-ghost" onClick={close}>Close</button>
+          <button className="btn-secondary" onClick={close}>Close</button>
         </div>
       </div>
     </div>

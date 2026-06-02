@@ -5,73 +5,10 @@ import InstallModal from './InstallModal'
 import { useGitStatus } from '../hooks/useGitStatus'
 import { useForgeStore } from '../store'
 import { forge } from '../lib/tauri'
-import type { ProviderInfo } from '../lib/tauri'
+import type { ProviderInfo, PullRequestRecord } from '../lib/tauri'
 import { colors, fonts, labelStyle } from '../theme'
 import { Kbd } from './Kbd'
 import { isMac } from '../lib/shortcuts'
-
-const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
-  opencode: [
-    { value: '', label: 'Default model' },
-    { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-    { value: 'anthropic/claude-4-20250514', label: 'Claude 4' },
-    { value: 'openai/gpt-4o', label: 'GPT-4o' },
-    { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini' },
-    { value: 'openai/o3', label: 'o3' },
-    { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
-    { value: 'opencode/deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
-    { value: '__custom__', label: 'Custom…' },
-  ],
-  claude: [
-    { value: '', label: 'Default model' },
-    { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-    { value: '__custom__', label: 'Custom…' },
-  ],
-  codex: [
-    { value: '', label: 'Default model' },
-    { value: 'o4-mini', label: 'o4-mini' },
-    { value: 'o3', label: 'o3' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: '__custom__', label: 'Custom…' },
-  ],
-  gemini: [
-    { value: '', label: 'Default model' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { value: '__custom__', label: 'Custom…' },
-  ],
-  openclaude: [
-    { value: '', label: 'Default model' },
-    { value: '__custom__', label: 'Custom (Ollama model)…' },
-  ],
-  kilo: [
-    { value: '', label: 'Default model' },
-    { value: 'kilo/kilo-auto/free', label: 'Auto — Free (recommended)' },
-    { value: 'kilo/kilo-auto/balanced', label: 'Auto — Balanced' },
-    { value: 'kilo/kilo-auto/frontier', label: 'Auto — Frontier' },
-    { value: 'kilo/kilo-auto/small', label: 'Auto — Small' },
-    { value: 'kilo/anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5' },
-    { value: 'kilo/anthropic/claude-opus-4.5', label: 'Claude Opus 4.5' },
-    { value: 'kilo/anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5' },
-    { value: 'kilo/~anthropic/claude-sonnet-latest', label: 'Claude Sonnet (latest)' },
-    { value: 'kilo/~google/gemini-pro-latest', label: 'Gemini Pro (latest)' },
-    { value: 'kilo/~google/gemini-flash-latest', label: 'Gemini Flash (latest)' },
-    { value: 'kilo/~openai/gpt-latest', label: 'GPT (latest)' },
-    { value: 'kilo/deepseek/deepseek-chat', label: 'DeepSeek Chat' },
-    { value: '__custom__', label: 'Custom… (provider/model)' },
-  ],
-}
-
-const OPENCODE_AGENTS = [
-  { value: '', label: 'Default (coding)' },
-  { value: 'plan', label: 'Plan' },
-  { value: '__custom__', label: 'Custom…' },
-]
 
 type Tab = 'diff' | 'pr' | 'settings'
 
@@ -82,8 +19,10 @@ interface Props {
 export default function RightPanel({ workspaceId }: Props) {
   const [tab, setTab] = useState<Tab>('diff')
   const [installProvider, setInstallProvider] = useState<ProviderInfo | null>(null)
+  const [pr, setPr] = useState<PullRequestRecord | null>(null)
   const { status } = useGitStatus(workspaceId)
   const { workspaces, providers, setWorkspaces, setProviders } = useForgeStore()
+  const showHints = useForgeStore(s => s.settings.general.showKeyboardHints)
 
   useEffect(() => {
     const onSetTab = (e: Event) => {
@@ -94,35 +33,20 @@ export default function RightPanel({ workspaceId }: Props) {
     return () => window.removeEventListener('forge:set-right-tab', onSetTab)
   }, [])
 
+  useEffect(() => {
+    forge.getPrStatus(workspaceId).then(setPr).catch(() => {})
+  }, [workspaceId])
+
   const ws = workspaces.find(w => w.id === workspaceId)
-
-  const wsConfig: Record<string, string> = ws?.provider_config
-    ? (JSON.parse(ws.provider_config) as Record<string, string>)
-    : {}
-
-  const [modelInput, setModelInput] = useState(wsConfig.model ?? '')
-  const [modelCustomInput, setModelCustomInput] = useState('')
-  const [agentInput, setAgentInput] = useState(wsConfig.agent ?? '')
-  const [agentCustomInput, setAgentCustomInput] = useState('')
 
   const [mergePush, setMergePush] = useState(!!ws?.merge_push)
   const [mergeCleanup, setMergeCleanup] = useState(ws?.merge_cleanup || 'archive')
   const [savingMerge, setSavingMerge] = useState(false)
 
   useEffect(() => {
-    setModelInput(wsConfig.model ?? '')
-    setModelCustomInput('')
-    setAgentInput(wsConfig.agent ?? '')
-    setAgentCustomInput('')
-  }, [workspaceId])
-
-  useEffect(() => {
     setMergePush(!!ws?.merge_push)
     setMergeCleanup(ws?.merge_cleanup ?? 'archive')
   }, [workspaceId])
-
-  const resolveModel = modelInput === '__custom__' ? modelCustomInput : modelInput
-  const resolveAgent = agentInput === '__custom__' ? agentCustomInput : agentInput
 
   const handleProviderChange = async (provider: string) => {
     try {
@@ -134,22 +58,7 @@ export default function RightPanel({ workspaceId }: Props) {
     }
   }
 
-  const handleSaveConfig = async () => {
-    const config: Record<string, string> = {}
-    if (resolveModel) config.model = resolveModel
-    if (resolveAgent) config.agent = resolveAgent
-    try {
-      await forge.updateWorkspaceConfig(workspaceId, config)
-      const updated = workspaces.map(w =>
-        w.id === workspaceId
-          ? { ...w, provider_config: Object.keys(config).length ? JSON.stringify(config) : null }
-          : w
-      )
-      setWorkspaces(updated)
-    } catch (e: any) {
-      alert(e)
-    }
-  }
+  const changedCount = status?.changed_count ?? 0
 
   return (
     <div
@@ -163,23 +72,139 @@ export default function RightPanel({ workspaceId }: Props) {
         overflow: 'hidden',
       }}
     >
+      {/* PR status header — sits above the tabs, mirrors the reference
+          layout (PR #N • status • Create PR button). */}
+      <div
+        style={{
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          borderBottom: `1px solid ${colors.steel}`,
+          flexShrink: 0,
+          background: colors.iron,
+        }}
+      >
+        {pr ? (
+          <>
+            <span
+              style={{
+                fontFamily: fonts.mono,
+                fontSize: 11,
+                color: colors.bone,
+                letterSpacing: '0.02em',
+              }}
+            >
+              PR #{pr.pr_number}
+            </span>
+            <span
+              className={
+                pr.merged
+                  ? 'status-pill is-ash'
+                  : pr.state === 'closed'
+                  ? 'status-pill'
+                  : pr.draft
+                  ? 'status-pill is-ash'
+                  : 'status-pill is-patina'
+              }
+              style={{ fontSize: 10 }}
+            >
+              {pr.merged
+                ? 'Merged'
+                : pr.state === 'closed'
+                ? 'Closed'
+                : pr.draft
+                ? 'Draft'
+                : 'Ready for review'}
+            </span>
+            <div style={{ flex: 1 }} />
+            <button
+              className="btn-primary"
+              style={{ padding: '5px 10px', fontSize: 11.5 }}
+              onClick={() => pr.html_url && window.__open?.(pr.html_url)}
+              title={pr.html_url ?? ''}
+            >
+              Open PR
+            </button>
+          </>
+        ) : (
+          <>
+            <span
+              style={{
+                fontFamily: fonts.mono,
+                fontSize: 11,
+                color: colors.smoke,
+                letterSpacing: '0.02em',
+              }}
+            >
+              No PR
+            </span>
+            <span className="status-pill is-ash" style={{ fontSize: 10 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: colors.smoke }} />
+              local changes
+            </span>
+            <div style={{ flex: 1 }} />
+            <button
+              className="btn-primary"
+              style={{ padding: '5px 10px', fontSize: 11.5 }}
+              onClick={() => setTab('pr')}
+            >
+              Create PR
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* File-style tab bar */}
       <div
         style={{
           display: 'flex',
           borderBottom: `1px solid ${colors.steel}`,
           background: colors.iron,
           flexShrink: 0,
-          padding: '0 16px',
+          padding: '0 8px',
           gap: 0,
         }}
       >
         {([
-          { id: 'diff',     label: `Changes${status?.changed_count ? ` · ${status.changed_count}` : ''}`, hint: isMac() ? '⇧⌘D' : 'Ctrl+Shift+D' },
-          { id: 'pr',       label: 'Ship', hint: isMac() ? '⇧⌘P' : 'Ctrl+Shift+P' },
-          { id: 'settings', label: 'Forge', hint: isMac() ? '⇧⌘F' : 'Ctrl+Shift+F' },
-        ] as { id: Tab; label: string; hint: string }[]).map(t => (
-          <RightTab key={t.id} label={t.label} hint={t.hint} active={tab === t.id} onClick={() => setTab(t.id)} />
-        ))}
+          { id: 'diff',     label: 'All files', count: undefined,                  hint: isMac() ? '⇧⌘D' : 'Ctrl+Shift+D' },
+          { id: 'diff',     label: 'Changes',   count: changedCount,               hint: undefined,                                          duplicate: true },
+          { id: 'pr',       label: 'Ship',      count: undefined,                  hint: isMac() ? '⇧⌘P' : 'Ctrl+Shift+P' },
+          { id: 'settings', label: 'Forge',     count: undefined,                  hint: isMac() ? '⇧⌘F' : 'Ctrl+Shift+F' },
+        ] as { id: Tab; label: string; count?: number; hint?: string; duplicate?: boolean }[])
+          .filter(t => !t.duplicate)
+          .map(t => (
+            <button
+              key={t.label}
+              className="tab-file"
+              data-active={tab === t.id}
+              onClick={() => setTab(t.id)}
+            >
+              <span>{t.label}</span>
+              {t.count !== undefined && t.count > 0 && (
+                <span
+                  style={{
+                    fontFamily: fonts.mono,
+                    fontSize: 10,
+                    color: 'var(--accent)',
+                    background: 'rgba(var(--accent-rgb), 0.12)',
+                    border: '1px solid rgba(var(--accent-rgb), 0.25)',
+                    borderRadius: 999,
+                    padding: '0 6px',
+                    minWidth: 16,
+                    textAlign: 'center',
+                  }}
+                >
+                  {t.count}
+                </span>
+              )}
+              {showHints && t.hint && (
+                <span style={{ opacity: 0.5, marginLeft: 4 }}>
+                  <Kbd size="sm">{t.hint}</Kbd>
+                </span>
+              )}
+            </button>
+          ))}
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -194,7 +219,7 @@ export default function RightPanel({ workspaceId }: Props) {
         {tab === 'settings' && (
           <div
             className="forge-stagger"
-            style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto' }}
+            style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto' }}
           >
             <SettingsField label="Agent provider">
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -211,7 +236,7 @@ export default function RightPanel({ workspaceId }: Props) {
                 </select>
                 {!providers.find(p => p.id === ws?.provider)?.available && (
                   <button
-                    className="btn-ghost"
+                    className="btn-secondary"
                     onClick={() => {
                       const p = providers.find(p => p.id === ws?.provider)
                       if (p) setInstallProvider(p)
@@ -221,79 +246,8 @@ export default function RightPanel({ workspaceId }: Props) {
                   </button>
                 )}
               </div>
-              <Hint>Applies to future agent runs in this anvil.</Hint>
+              <Hint>Applies to future agent runs in this workspace.</Hint>
             </SettingsField>
-
-            {(() => {
-              const currentProvider = providers.find(p => p.id === ws?.provider)
-              const modelOptions = ws?.provider
-                ? (PROVIDER_MODELS[ws.provider] ?? [{ value: '', label: 'Default model' }, { value: '__custom__', label: 'Custom…' }])
-                : []
-              return (
-                <>
-                  {currentProvider?.supports_model && (
-                    <SettingsField label="Model">
-                      <select
-                        className="forge-select"
-                        value={modelInput}
-                        onChange={e => setModelInput(e.target.value)}
-                      >
-                        {modelOptions.map(m => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </select>
-                      {modelInput === '__custom__' && (
-                        <input
-                          className="forge-input"
-                          placeholder="Enter model name…"
-                          value={modelCustomInput}
-                          onChange={e => setModelCustomInput(e.target.value)}
-                          style={{ marginTop: 8 }}
-                        />
-                      )}
-                    </SettingsField>
-                  )}
-
-                  {currentProvider?.supports_mode && (
-                    <SettingsField label="Mode">
-                      <select
-                        className="forge-select"
-                        value={agentInput}
-                        onChange={e => setAgentInput(e.target.value)}
-                      >
-                        {OPENCODE_AGENTS.map(a => (
-                          <option key={a.value} value={a.value}>{a.label}</option>
-                        ))}
-                      </select>
-                      {agentInput === '__custom__' && (
-                        <input
-                          className="forge-input"
-                          placeholder="Enter agent name…"
-                          value={agentCustomInput}
-                          onChange={e => setAgentCustomInput(e.target.value)}
-                          style={{ marginTop: 8 }}
-                        />
-                      )}
-                    </SettingsField>
-                  )}
-
-                  {(currentProvider?.supports_model || currentProvider?.supports_mode) && (
-                    <div>
-                      <button className="btn-strike" onClick={handleSaveConfig} style={{ width: '100%' }}>
-                        Save configuration
-                      </button>
-                      <Hint>
-                        Passed as <Code>--model</Code>
-                        {currentProvider?.supports_mode && (
-                          <>{' '}and <Code>--agent</Code></>
-                        )}
-                        {' '}flags to <Code>{ws?.provider}</Code>.
-                      </Hint>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
 
             <div className="seam" style={{ margin: '4px 0' }} />
 
@@ -354,7 +308,7 @@ export default function RightPanel({ workspaceId }: Props) {
                   }
                 }}
                 disabled={savingMerge}
-                className="btn-ghost"
+                className="btn-secondary"
                 style={{ marginTop: 12, width: '100%' }}
               >
                 {savingMerge ? 'Saving…' : 'Save merge defaults'}
@@ -375,54 +329,6 @@ export default function RightPanel({ workspaceId }: Props) {
         />
       )}
     </div>
-  )
-}
-
-function RightTab({ label, hint, active, onClick }: { label: string; hint?: string; active: boolean; onClick: () => void }) {
-  const showHints = useForgeStore(s => s.settings.general.showKeyboardHints)
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        position: 'relative',
-        flex: 1,
-        padding: '12px 0 13px',
-        border: 'none',
-        cursor: 'pointer',
-        background: 'transparent',
-        color: active ? colors.cream : colors.ash,
-        fontSize: 11,
-        fontFamily: fonts.mono,
-        fontWeight: active ? 600 : 500,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        transition: 'color 0.12s ease',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-      }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = colors.bone }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = colors.ash }}
-    >
-      <span>{label}</span>
-      {showHints && hint && (
-        <span style={{ opacity: 0.5, letterSpacing: 0 }}>
-          <Kbd size="sm">{hint}</Kbd>
-        </span>
-      )}
-      {active && (
-        <span
-          style={{
-            position: 'absolute',
-            left: '25%', right: '25%', bottom: -1,
-            height: 1,
-            background: colors.accent,
-            boxShadow: `0 0 8px var(--accent)`,
-          }}
-        />
-      )}
-    </button>
   )
 }
 
@@ -448,23 +354,5 @@ function Hint({ children }: { children: React.ReactNode }) {
     >
       {children}
     </p>
-  )
-}
-
-function Code({ children }: { children: React.ReactNode }) {
-  return (
-    <code
-      style={{
-        color: colors.bone,
-        background: colors.coal,
-        border: `1px solid ${colors.steel}`,
-        borderRadius: 3,
-        padding: '1px 6px',
-        fontSize: 10.5,
-        fontFamily: fonts.mono,
-      }}
-    >
-      {children}
-    </code>
   )
 }

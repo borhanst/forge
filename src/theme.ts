@@ -53,17 +53,17 @@ export const fonts = {
 } as const
 
 export const radius = {
-  sm: 4,
-  md: 6,
+  sm: 6,
+  md: 8,
   lg: 10,
-  xl: 16,
+  xl: 12,
 } as const
 
 export const shadow = {
   panel: '0 1px 0 rgba(255,255,255,0.02) inset, 0 0 0 1px rgba(0,0,0,0.4)',
-  modal: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.08)',
-  ember: '0 0 0 1px rgba(255,106,31,0.35), 0 0 20px -2px rgba(255,106,31,0.4)',
-  emberSoft: '0 0 24px -6px rgba(255,106,31,0.35)',
+  modal: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.5)',
+  ember: '0 0 0 1px rgba(255,106,31,0.25), 0 0 12px -2px rgba(255,106,31,0.25)',
+  emberSoft: '0 0 16px -6px rgba(255,106,31,0.2)',
 } as const
 
 /**

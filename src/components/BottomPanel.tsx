@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Terminal } from './Terminal'
 import { TerminalShell } from './TerminalShell'
 import { forge } from '../lib/tauri'
-import { colors, fonts } from '../theme'
+import { colors } from '../theme'
 import { Kbd } from './Kbd'
 import { isMac } from '../lib/shortcuts'
 import { useForgeStore } from '../store'
@@ -45,25 +45,42 @@ export function BottomPanel({ workspaceId }: Props) {
       <div
         style={{
           display: 'flex',
+          alignItems: 'center',
           background: colors.iron,
           borderBottom: `1px solid ${colors.steel}`,
           flexShrink: 0,
-          padding: '0 24px',
-          gap: 4,
+          padding: '0 8px',
+          gap: 0,
         }}
       >
         {([
           { id: 'agent', label: 'Agent' },
           { id: 'shell', label: 'Shell' },
         ] as { id: Tab; label: string }[]).map((t) => (
-          <Tab
+          <button
             key={t.id}
-            label={t.label}
-            hint={showKeyboardHints ? (isMac() ? '⌘J' : 'Ctrl+J') : undefined}
-            active={tab === t.id}
+            className="tab-file"
+            data-active={tab === t.id}
             onClick={() => setTab(t.id)}
-          />
+          >
+            <span>{t.label}</span>
+            {showKeyboardHints && (
+              <span style={{ opacity: 0.5, marginLeft: 4 }}>
+                <Kbd size="sm">{isMac() ? '⌘J' : 'Ctrl+J'}</Kbd>
+              </span>
+            )}
+          </button>
         ))}
+        <div style={{ flex: 1 }} />
+        <button
+          className="tab-file"
+          onClick={() => {/* hook for new tab */}}
+          title="New tab"
+          aria-label="New tab"
+          style={{ padding: '7px 10px 8px' }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
+        </button>
       </div>
       <div
         style={{
@@ -79,46 +96,5 @@ export function BottomPanel({ workspaceId }: Props) {
         )}
       </div>
     </div>
-  )
-}
-
-function Tab({ label, hint, active, onClick }: { label: string; hint?: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        position: 'relative',
-        padding: '10px 16px 11px',
-        border: 'none',
-        cursor: 'pointer',
-        background: 'transparent',
-        color: active ? colors.cream : colors.ash,
-        fontSize: 11,
-        fontFamily: fonts.mono,
-        fontWeight: active ? 600 : 500,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        transition: 'color 0.12s ease',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-      }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = colors.bone }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = colors.ash }}
-    >
-      <span>{label}</span>
-      {hint && <span style={{ opacity: 0.5, letterSpacing: 0 }}><Kbd size="sm">{hint}</Kbd></span>}
-      {active && (
-        <span
-          style={{
-            position: 'absolute',
-            left: 14, right: 14, bottom: -1,
-            height: 1,
-            background: colors.accent,
-            boxShadow: `0 0 8px var(--accent)`,
-          }}
-        />
-      )}
-    </button>
   )
 }

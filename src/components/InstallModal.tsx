@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import type { ProviderInfo } from '../lib/tauri'
-import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { colors, fonts, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
 
 export default function InstallModal({
@@ -66,34 +66,30 @@ export default function InstallModal({
         style={{
           background: colors.iron,
           border: `1px solid ${colors.steelHi}`,
-          borderRadius: 10,
-          padding: 32,
+          borderRadius: 12,
+          padding: 28,
           width: 460,
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 28, right: 28, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.5,
-          }}
-        />
+        <button onClick={onClose} className="modal-close" aria-label="Close" title="Close">
+          ×
+        </button>
 
         <div style={labelStyle}>
           {done ? 'Mounted' : 'Provision'}
         </div>
         <h2
           style={{
-            ...displayItalic,
             margin: '4px 0 4px',
-            fontSize: 26,
+            fontFamily: fonts.body,
+            fontSize: 20,
+            fontWeight: 600,
             color: colors.cream,
-            letterSpacing: '-0.015em',
+            letterSpacing: '-0.005em',
           }}
         >
           {done ? `${provider.display_name} is installed` : `Install ${provider.display_name}`}
@@ -101,14 +97,14 @@ export default function InstallModal({
 
         {!done && (
           <>
-            <p style={{ color: colors.smoke, fontSize: 13, marginTop: 8, lineHeight: 1.55 }}>
+            <p style={{ color: colors.smoke, fontSize: 12.5, marginTop: 8, lineHeight: 1.55 }}>
               This will run the following command in your shell:
             </p>
             <pre
               style={{
                 background: colors.soot,
                 border: `1px solid ${colors.steel}`,
-                borderRadius: 6,
+                borderRadius: 8,
                 padding: '12px 16px',
                 marginTop: 14,
                 fontSize: 12,
@@ -159,7 +155,7 @@ export default function InstallModal({
               background: 'rgba(208,90,62,0.06)',
               border: `1px solid rgba(208,90,62,0.25)`,
               padding: '8px 10px',
-              borderRadius: 4,
+              borderRadius: 6,
             }}
           >
             {error}
@@ -170,16 +166,16 @@ export default function InstallModal({
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 10,
-            marginTop: 24,
+            gap: 8,
+            marginTop: 22,
           }}
         >
-          <button className="btn-ghost" onClick={onClose} disabled={loading}>
+          <button className="btn-secondary" onClick={onClose} disabled={loading}>
             {done ? 'Close' : 'Cancel'}
           </button>
           {!done && (
             <button
-              className="btn-strike"
+              className="btn-primary"
               onClick={handleInstall}
               disabled={loading}
               style={{

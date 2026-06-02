@@ -33,18 +33,15 @@ export function Terminal({ workspaceId }: Props) {
           justifyContent: 'center',
           color: colors.ash,
           fontSize: 12,
-          fontFamily: fonts.mono,
+          fontFamily: fonts.body,
           background: '#06040a',
-          letterSpacing: '0.04em',
           flexDirection: 'column',
-          gap: 6,
-          textTransform: 'uppercase',
+          gap: 4,
         }}
       >
-        <span style={{ color: colors.steelHi, fontSize: 14 }}>—</span>
-        <span>The anvil is silent</span>
-        <span style={{ color: colors.steel, fontSize: 10 }}>
-          strike a prompt below
+        <span style={{ color: colors.smoke }}>No agent output yet</span>
+        <span style={{ color: colors.steel, fontSize: 11 }}>
+          send a prompt below to start the run
         </span>
       </div>
     )
@@ -64,15 +61,14 @@ export function Terminal({ workspaceId }: Props) {
         position: 'relative',
       }}
     >
-      {/* Scan-line edge: a barely-visible top fade. Sets the terminal apart from
-          the panel chrome without a hard rule. */}
+      {/* Subtle top fade so the terminal edge sits below the tab bar cleanly. */}
       <div
         style={{
           position: 'sticky',
           top: 0,
-          height: 14,
-          marginTop: -14,
-          marginBottom: -8,
+          height: 10,
+          marginTop: -10,
+          marginBottom: -4,
           background: 'linear-gradient(180deg, #06040a, transparent)',
           pointerEvents: 'none',
           zIndex: 1,

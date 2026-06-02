@@ -2,35 +2,16 @@ import { useEffect, useState } from 'react'
 import { forge, forgeEvents } from '../lib/tauri'
 import { useForgeStore } from '../store'
 import type { Workspace, ProviderInfo } from '../lib/tauri'
-import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { colors, fonts } from '../theme'
 import { isMac } from '../lib/shortcuts'
-import { AnvilMark, ChevronMark, GearMark } from './Marks'
+import { ChevronMark, GearMark } from './Marks'
 import { Kbd } from './Kbd'
 import AddRepoModal from './AddRepoModal'
 import InstallModal from './InstallModal'
 import MergeModal from './MergeModal'
 import SettingsModal from './SettingsModal'
 import { confirmDialog } from './ConfirmDialog'
-
-const OPENCODE_MODELS = [
-  { value: '', label: 'Default model' },
-  { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-  { value: 'anthropic/claude-4-20250514', label: 'Claude 4' },
-  { value: 'openai/gpt-4o', label: 'GPT-4o' },
-  { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini' },
-  { value: 'openai/o3', label: 'o3' },
-  { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
-  { value: 'opencode/deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
-  { value: '__custom__', label: 'Custom…' },
-]
-
-const OPENCODE_AGENTS = [
-  { value: '', label: 'Default (coding)' },
-  { value: 'plan', label: 'Plan' },
-  { value: '__custom__', label: 'Custom…' },
-]
+import { OPENCODE_AGENTS, OPENCODE_MODELS } from '../lib/pills'
 
 export default function Sidebar() {
   const {
@@ -133,6 +114,11 @@ export default function Sidebar() {
     await loadData()
   }
 
+  const totalWorkspaces = repositories.reduce(
+    (sum, r) => sum + workspaces.filter(w => w.repo_id === r.id).length,
+    0
+  )
+
   return (
     <aside
       style={{
@@ -147,88 +133,91 @@ export default function Sidebar() {
         position: 'relative',
       }}
     >
-      {/* Header — brand wordmark */}
+      {/* macOS traffic-light inset — native title bar overlaps the top-left
+          ~80px on macOS, so we keep the row above the chrome empty. */}
       <div
         style={{
-          padding: '22px 22px 18px',
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: 12,
-          borderBottom: `1px solid ${colors.steel}`,
-          position: 'relative',
+          height: 36,
+          flexShrink: 0,
+          // CSS controls the actual padding on macOS via .sidebar-titlebar
+          // (see App.css). We use a marker class so the inset is opt-in.
+          ...(isMac() ? { WebkitAppRegion: 'drag' } : {}),
         }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <span
-            style={{
-              color: colors.accent,
-              display: 'inline-flex',
-              transform: 'translateY(2px)',
-            }}
-          >
-            <AnvilMark size={20} glow />
-          </span>
-          <span
-            style={{
-              ...displayItalic,
-              fontSize: 28,
-              lineHeight: 1,
-              color: colors.cream,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Forge
-          </span>
-        </div>
+        className="sidebar-titlebar"
+      />
 
-        <button
-          onClick={() => setShowAddRepo(true)}
-          title="Add repository (⌘N)"
-          aria-label="Add repository"
-          style={{
-            background: 'transparent',
-            border: `1px solid ${colors.steel}`,
-            color: colors.smoke,
-            borderRadius: 4,
-            width: 26,
-            height: 26,
-            cursor: 'pointer',
-            fontSize: 16,
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.15s ease',
-            fontFamily: fonts.mono,
-            paddingBottom: 2,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.setProperty('color', 'var(--accent)')
-            e.currentTarget.style.setProperty('borderColor', 'var(--accent-deep)')
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = colors.smoke
-            e.currentTarget.style.borderColor = colors.steel
-          }}
-        >
-          +
-        </button>
-      </div>
-
-      {/* Section label */}
+      {/* Section header — "Workspaces" with right-side action icons. */}
       <div
         style={{
-          padding: '16px 22px 8px',
+          padding: '6px 14px 8px',
+          paddingLeft: isMac() ? 90 : 14,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 8,
+          flexShrink: 0,
         }}
       >
-        <span style={labelStyle}>Anvils</span>
-        <span style={{ ...labelStyle, color: colors.ash, fontSize: 9 }}>
-          {repositories.length.toString().padStart(2, '0')}
+        <span
+          style={{
+            fontFamily: fonts.body,
+            fontSize: 12,
+            fontWeight: 600,
+            color: colors.ivory,
+            letterSpacing: 0,
+          }}
+        >
+          Workspaces
+          <span
+            style={{
+              marginLeft: 8,
+              color: colors.ash,
+              fontWeight: 500,
+              fontFamily: fonts.mono,
+              fontSize: 11,
+            }}
+          >
+            {totalWorkspaces}
+          </span>
         </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <button
+            className="icon-btn"
+            title="Filter"
+            aria-label="Filter workspaces"
+            onClick={() => {/* hook for filter */}}
+          >
+            <FilterIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="Add repository (⌘N)"
+            aria-label="Add repository"
+            onClick={() => setShowAddRepo(true)}
+          >
+            <RepoIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="Link"
+            aria-label="Link external workspace"
+            onClick={() => {/* hook for link */}}
+          >
+            <LinkIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="New workspace"
+            aria-label="New workspace"
+            onClick={() => {
+              const firstRepo = repositories[0]
+              if (firstRepo) toggleRepo(firstRepo.id)
+              setShowAddRepo(true)
+            }}
+          >
+            <PlusIcon />
+          </button>
+        </div>
       </div>
 
       <div
@@ -250,15 +239,15 @@ export default function Sidebar() {
               <div
                 onClick={() => toggleRepo(repo.id)}
                 style={{
-                  padding: '9px 22px',
+                  padding: '6px 14px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 10,
+                  gap: 8,
                   background: isActive ? colors.coal : 'transparent',
                   color: isActive ? colors.ivory : colors.bone,
                   fontFamily: fonts.body,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: 500,
                   position: 'relative',
                   transition: 'background 0.12s ease, color 0.12s ease',
@@ -270,19 +259,7 @@ export default function Sidebar() {
                   if (!isActive) e.currentTarget.style.background = 'transparent'
                 }}
               >
-                {isActive && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      left: 0, top: 6, bottom: 6,
-                      width: 2,
-                      background: colors.accent,
-                      borderRadius: '0 2px 2px 0',
-                      boxShadow: `0 0 8px var(--accent)`,
-                    }}
-                  />
-                )}
-                <span style={{ color: isActive ? colors.accent : colors.ash, display: 'inline-flex' }}>
+                <span style={{ color: isActive ? colors.bone : colors.ash, display: 'inline-flex' }}>
                   <ChevronMark size={9} direction={expanded ? 'down' : 'right'} />
                 </span>
                 <span
@@ -296,18 +273,21 @@ export default function Sidebar() {
                   {repo.name}
                 </span>
                 {runningCount > 0 && (
-                  <span className="ember-dot" aria-label="agents running" />
+                  <span
+                    style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: colors.accent,
+                      boxShadow: `0 0 6px rgba(var(--accent-rgb),0.6)`,
+                    }}
+                    aria-label="agents running"
+                  />
                 )}
                 <span
                   style={{
                     fontFamily: fonts.mono,
-                    fontSize: 10,
-                    color: colors.ash,
-                    background: colors.ore,
-                    border: `1px solid ${colors.steel}`,
-                    borderRadius: 3,
-                    padding: '1px 6px',
-                    letterSpacing: '0.04em',
+                    fontSize: 10.5,
+                    color: colors.smoke,
+                    letterSpacing: '0.02em',
                   }}
                 >
                   {repoWorkspaces.length}
@@ -328,30 +308,20 @@ export default function Sidebar() {
                     forge.removeRepo(repo.id).then(() => loadData()).catch(err => alert(String(err)))
                   }}
                   title={`Remove ${repo.name}`}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: colors.steel,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    padding: '2px 4px',
-                    lineHeight: 1,
-                    borderRadius: 4,
-                    transition: 'color 0.12s ease',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = colors.rust }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = colors.steel }}
+                  className="icon-btn"
+                  style={{ width: 22, height: 22 }}
                 >
-                  ×
+                  <span style={{ fontSize: 14, lineHeight: 1 }}>×</span>
                 </button>
               </div>
 
               {expanded && (
                 <div className="forge-fade">
-                  {repoWorkspaces.map(ws => (
+                  {repoWorkspaces.map((ws, i) => (
                     <WorkspaceItem
                       key={ws.id}
                       workspace={ws}
+                      index={i + 1}
                       active={activeWorkspaceId === ws.id}
                       running={runningAgents.has(ws.id)}
                       onSelect={() => { setActiveWorkspace(ws.id); setActiveRepo(repo.id) }}
@@ -373,92 +343,41 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Footer mark */}
+      {/* Footer — flat row, single line. */}
       <div
         style={{
           borderTop: `1px solid ${colors.steel}`,
-          padding: '8px 14px',
+          padding: '6px 10px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 8,
+          flexShrink: 0,
         }}
       >
         <button
           onClick={() => openSettings('general')}
           title="Settings (⌘,)"
           aria-label="Open settings"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'transparent',
-            border: 'none',
-            color: colors.bone,
-            fontFamily: fonts.body,
-            fontSize: 12,
-            padding: '6px 8px',
-            borderRadius: 4,
-            cursor: 'pointer',
-            transition: 'background 0.12s ease, color 0.12s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = colors.coal
-            e.currentTarget.style.setProperty('color', 'var(--accent)')
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = colors.bone
-          }}
+          className="btn-ghost"
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
         >
           <GearMark size={13} />
           <span>Settings</span>
           {showKeyboardHints && (
-            <span style={{ marginLeft: 4, opacity: 0.6 }}>
+            <span style={{ marginLeft: 2, opacity: 0.6 }}>
               <Kbd>{isMac() ? '⌘,' : 'Ctrl+,'}</Kbd>
             </span>
           )}
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span
-            style={{
-              color: colors.steel,
-              fontFamily: fonts.mono,
-              fontSize: 10,
-              letterSpacing: '0.12em',
-            }}
-          >
-            v0.1
-          </span>
-          <button
-            onClick={() => useForgeStore.getState().openShortcuts()}
-            title="Keyboard shortcuts (?)"
-            aria-label="Show keyboard shortcuts"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: 'transparent',
-              border: 'none',
-              color: colors.bone,
-              padding: '4px 6px',
-              borderRadius: 4,
-              cursor: 'pointer',
-              transition: 'background 0.12s ease, color 0.12s ease',
-              fontFamily: fonts.mono,
-              fontSize: 11,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.coal
-              e.currentTarget.style.setProperty('color', 'var(--accent)')
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = colors.bone
-            }}
-          >
-            <Kbd>?</Kbd>
-          </button>
-        </div>
+        <button
+          onClick={() => useForgeStore.getState().openShortcuts()}
+          title="Keyboard shortcuts (?)"
+          aria-label="Show keyboard shortcuts"
+          className="icon-btn"
+        >
+          <Kbd>?</Kbd>
+        </button>
       </div>
 
       {showAddRepo && (
@@ -512,17 +431,8 @@ function EmptyRepos({ onAdd }: { onAdd: () => void }) {
       </div>
       <button
         onClick={onAdd}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: colors.accent,
-          fontFamily: fonts.mono,
-          fontSize: 11,
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          padding: 0,
-        }}
+        className="btn-ghost"
+        style={{ color: 'var(--accent)' }}
       >
         Mount a repository →
       </button>
@@ -539,9 +449,10 @@ const STATUS_TINT: Record<string, { dot: string; ring: string }> = {
 }
 
 function WorkspaceItem({
-  workspace, active, running, onSelect, onArchive, onDelete, onUpdateProvider, onMerge,
+  workspace, index, active, running, onSelect, onArchive, onDelete, onUpdateProvider, onMerge,
 }: {
   workspace: Workspace
+  index: number
   active: boolean
   running: boolean
   onSelect: () => void
@@ -562,16 +473,16 @@ function WorkspaceItem({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        padding: '7px 22px 7px 40px',
+        padding: '5px 14px 5px 30px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
         position: 'relative',
         background: active
-          ? `linear-gradient(90deg, ${colors.coal}, ${colors.iron} 80%)`
+          ? colors.coal
           : hover
-          ? `${colors.coal}80`
+          ? `${colors.coal}66`
           : 'transparent',
         color: active ? colors.ivory : colors.bone,
         fontFamily: fonts.body,
@@ -579,32 +490,19 @@ function WorkspaceItem({
         transition: 'background 0.12s ease, color 0.12s ease',
       }}
     >
-      {active && (
-        <span
-          style={{
-            position: 'absolute',
-            left: 0, top: 4, bottom: 4,
-            width: 2,
-            background: colors.accent,
-            borderRadius: '0 2px 2px 0',
-            boxShadow: `0 0 8px var(--accent)`,
-          }}
-        />
-      )}
-
       <span
         style={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: tint.dot,
-          boxShadow: running
-            ? `0 0 0 2px ${tint.ring}, 0 0 10px var(--accent)`
-            : `0 0 0 1px rgba(0,0,0,0.4)`,
+          color: active ? colors.smoke : colors.ash,
+          fontFamily: fonts.mono,
+          fontSize: 10.5,
+          width: 16,
           flexShrink: 0,
-          animation: running ? 'ember-glow-soft 1.6s ease-in-out infinite' : undefined,
+          textAlign: 'right',
+          letterSpacing: '0.02em',
         }}
-      />
+      >
+        {index}.
+      </span>
 
       <span
         style={{
@@ -618,44 +516,54 @@ function WorkspaceItem({
         {workspace.city_name}
       </span>
 
+      {/* Right side: status badge. Hidden until hover/active for a cleaner
+          default appearance, matching the reference. */}
       <span
         style={{
-          fontFamily: fonts.mono,
-          fontSize: 9.5,
-          color: colors.ash,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
           flexShrink: 0,
-          opacity: hover || active ? 0.7 : 0.45,
+          opacity: hover || active ? 1 : 0.65,
           transition: 'opacity 0.12s ease',
         }}
       >
-        {workspace.provider}
+        <span
+          style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: tint.dot,
+            boxShadow: running
+              ? `0 0 0 2px ${tint.ring}, 0 0 8px var(--accent)`
+              : `0 0 0 1px rgba(0,0,0,0.4)`,
+            flexShrink: 0,
+            animation: running ? 'ember-glow-soft 1.6s ease-in-out infinite' : undefined,
+          }}
+        />
+        <span
+          style={{
+            fontFamily: fonts.mono,
+            fontSize: 9.5,
+            color: colors.smoke,
+            letterSpacing: '0.06em',
+            textTransform: 'lowercase',
+          }}
+        >
+          {workspace.provider}
+        </span>
       </span>
 
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen) }}
           title="Options"
+          className="icon-btn"
           style={{
-            background: menuOpen ? colors.steel : 'transparent',
-            border: 'none',
-            color: menuOpen ? colors.ivory : colors.ash,
-            cursor: 'pointer',
-            fontSize: 13,
-            padding: '0 4px',
-            lineHeight: 1,
-            borderRadius: 3,
-            transition: 'all 0.12s ease',
+            width: 22, height: 22,
             opacity: hover || active || menuOpen ? 1 : 0,
-            letterSpacing: '0.1em',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.setProperty('color', 'var(--accent)') }}
-          onMouseLeave={(e) => {
-            if (!menuOpen) e.currentTarget.style.color = colors.ash
+            transition: 'opacity 0.12s ease',
           }}
         >
-          ⋯
+          <span style={{ fontSize: 14, lineHeight: 1, letterSpacing: '0.1em' }}>⋯</span>
         </button>
 
         {menuOpen && (
@@ -672,10 +580,10 @@ function WorkspaceItem({
                 zIndex: 100,
                 background: colors.coal,
                 border: `1px solid ${colors.steelHi}`,
-                borderRadius: 6,
+                borderRadius: 8,
                 minWidth: 168,
                 padding: '4px 0',
-                boxShadow: '0 14px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,106,31,0.06)',
+                boxShadow: '0 14px 32px rgba(0,0,0,0.6)',
               }}
             >
               <MenuItem
@@ -717,7 +625,7 @@ function MenuItem({ label, color, onClick }: { label: string; color?: string; on
         border: 'none',
         cursor: 'pointer',
         color: color || colors.bone,
-        fontSize: 12,
+        fontSize: 12.5,
         fontFamily: fonts.body,
         letterSpacing: 0,
         transition: 'background 0.1s ease, color 0.1s ease',
@@ -759,13 +667,13 @@ function NewWorkspaceRow({
       <div
         onClick={() => setOpen(true)}
         style={{
-          padding: '7px 22px 7px 40px',
+          padding: '5px 14px 5px 30px',
           cursor: 'pointer',
           color: colors.ash,
           fontSize: 12,
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 6,
           fontFamily: fonts.body,
           transition: 'color 0.12s ease',
         }}
@@ -773,7 +681,7 @@ function NewWorkspaceRow({
         onMouseLeave={(e) => (e.currentTarget.style.color = colors.ash)}
       >
         <span style={{ fontFamily: fonts.mono, fontSize: 11 }}>+</span>
-        <span style={{ letterSpacing: '0.02em' }}>New anvil</span>
+        <span>New anvil</span>
       </div>
     )
   }
@@ -797,7 +705,7 @@ function NewWorkspaceRow({
     background: colors.iron,
     color: colors.bone,
     border: `1px solid ${colors.steel}`,
-    borderRadius: 3,
+    borderRadius: 6,
     padding: '4px 6px',
     fontFamily: fonts.body,
     outline: 'none',
@@ -807,7 +715,7 @@ function NewWorkspaceRow({
     <div
       className="forge-rise"
       style={{
-        padding: '8px 22px 10px 40px',
+        padding: '8px 14px 10px 30px',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
@@ -835,7 +743,7 @@ function NewWorkspaceRow({
               background: 'transparent',
               border: `1px solid var(--accent)`,
               color: colors.accent,
-              borderRadius: 3,
+              borderRadius: 6,
               fontSize: 9,
               padding: '3px 7px',
               cursor: 'pointer',
@@ -850,37 +758,17 @@ function NewWorkspaceRow({
         )}
         <button
           onClick={handleGo}
-          style={{
-            background: colors.accent,
-            border: 'none',
-            color: colors.soot,
-            borderRadius: 3,
-            fontSize: 10,
-            padding: '4px 10px',
-            cursor: 'pointer',
-            fontFamily: fonts.mono,
-            fontWeight: 700,
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            boxShadow: '0 0 12px -2px rgba(255,106,31,0.6)',
-          }}
+          className="btn-primary"
+          style={{ padding: '4px 10px', fontSize: 11 }}
         >
           Forge
         </button>
         <button
           onClick={() => setOpen(false)}
-          style={{
-            background: 'transparent',
-            border: `1px solid ${colors.steel}`,
-            color: colors.ash,
-            borderRadius: 3,
-            fontSize: 11,
-            padding: '2px 7px',
-            cursor: 'pointer',
-            fontFamily: fonts.mono,
-          }}
+          className="icon-btn"
+          style={{ width: 22, height: 22 }}
         >
-          ×
+          <span style={{ fontSize: 14, lineHeight: 1 }}>×</span>
         </button>
       </div>
 
@@ -985,41 +873,54 @@ function UpdateProviderModal({
         style={{
           background: colors.iron,
           border: `1px solid ${colors.steelHi}`,
-          borderRadius: 10,
-          padding: '28px 32px',
+          borderRadius: 12,
+          padding: '24px 26px',
           width: 420,
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
         }}
       >
+        <button
+          onClick={onClose}
+          className="modal-close"
+          aria-label="Close"
+          title="Close"
+        >
+          ×
+        </button>
         <div
           style={{
-            position: 'absolute',
-            top: 0, left: 28, right: 28, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.5,
+            fontSize: 10,
+            fontFamily: fonts.mono,
+            fontWeight: 600,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            color: colors.smoke,
+            marginBottom: 4,
           }}
-        />
-        <div style={labelStyle}>Reforge</div>
+        >
+          Reforge
+        </div>
         <h2
           style={{
-            ...displayItalic,
-            margin: '4px 0 8px',
-            fontSize: 26,
+            margin: '2px 0 6px',
+            fontFamily: fonts.body,
+            fontSize: 18,
+            fontWeight: 600,
             color: colors.cream,
-            letterSpacing: '-0.01em',
+            letterSpacing: '-0.005em',
           }}
         >
           Reassign the smith
         </h2>
-        <p style={{ color: colors.smoke, fontSize: 13, lineHeight: 1.55 }}>
+        <p style={{ color: colors.smoke, fontSize: 12.5, lineHeight: 1.55, margin: 0 }}>
           Choose a different coding agent for{' '}
           <strong style={{ color: colors.ivory, fontWeight: 500 }}>{ws?.city_name || 'this workspace'}</strong>.
         </p>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 20 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 18 }}>
           <select
             className="forge-select"
             value={provider}
@@ -1044,12 +945,12 @@ function UpdateProviderModal({
           <p style={{ color: colors.rust, fontSize: 12, marginTop: 12 }}>{error}</p>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
-          <button className="btn-ghost" onClick={onClose} disabled={loading}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 22 }}>
+          <button className="btn-secondary" onClick={onClose} disabled={loading}>
             Cancel
           </button>
           <button
-            className="btn-strike"
+            className="btn-primary"
             onClick={handleUpdate}
             disabled={loading || provider === ws?.provider}
           >
@@ -1058,5 +959,40 @@ function UpdateProviderModal({
         </div>
       </div>
     </div>
+  )
+}
+
+/* === Sidebar toolbar icons (stroke-based, 1.5px) === */
+
+function FilterIcon() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4h12M4 8h8M6 12h4" />
+    </svg>
+  )
+}
+
+function RepoIcon() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 5.5C2 4.67 2.67 4 3.5 4h9c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5h-9A1.5 1.5 0 0 1 2 10.5v-5Z" />
+      <path d="M2 5.5 8 9l6-3.5" />
+    </svg>
+  )
+}
+
+function LinkIcon() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 9.5 9 7.5M6 5.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M10 10.5l-1 1a2.5 2.5 0 0 1-3.5-3.5l1-1" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3v10M3 8h10" />
+    </svg>
   )
 }

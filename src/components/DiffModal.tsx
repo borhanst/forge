@@ -145,19 +145,9 @@ const DiffModal: FC<Props> = ({ files, initialFile, workspaceId, comments, onCom
           display: 'flex',
           flexDirection: 'column',
           border: `1px solid ${colors.steelHi}`,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.08)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
         }}
       >
-        {/* Ember stripe */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 48, right: 48, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.55,
-          }}
-        />
-
         <div
           style={{
             display: 'flex',
@@ -169,23 +159,8 @@ const DiffModal: FC<Props> = ({ files, initialFile, workspaceId, comments, onCom
             flexShrink: 0,
           }}
         >
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: `1px solid ${colors.steel}`,
-              color: colors.ash,
-              cursor: 'pointer',
-              fontSize: 14,
-              lineHeight: 1,
-              padding: '4px 10px',
-              borderRadius: 4,
-              transition: 'all 0.12s ease',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = colors.rust; e.currentTarget.style.borderColor = colors.rust }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = colors.ash; e.currentTarget.style.borderColor = colors.steel }}
-          >
-            ×
+          <button onClick={onClose} className="icon-btn" title="Close" aria-label="Close">
+            <span style={{ fontSize: 18, lineHeight: 1 }}>×</span>
           </button>
 
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -360,14 +335,14 @@ const DiffModal: FC<Props> = ({ files, initialFile, workspaceId, comments, onCom
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button
-                className="btn-strike"
+                className="btn-primary"
                 onClick={handleSubmit}
                 disabled={!commentText.trim()}
               >
                 Send to smith
               </button>
               <button
-                className="btn-ghost"
+                className="btn-secondary"
                 onClick={() => { setCommentLine(null); setCommentText('') }}
               >
                 Cancel
@@ -385,21 +360,13 @@ function NavButton({ children, onClick, disabled }: { children: React.ReactNode;
     <button
       onClick={onClick}
       disabled={disabled}
+      className="btn-secondary"
       style={{
-        background: 'transparent',
-        border: `1px solid ${disabled ? colors.steel : colors.steelHi}`,
-        color: disabled ? colors.steel : colors.bone,
-        borderRadius: 4,
-        padding: '5px 12px',
-        fontSize: 10.5,
-        fontFamily: fonts.mono,
+        padding: '5px 10px',
+        fontSize: 11,
+        opacity: disabled ? 0.5 : 1,
         cursor: disabled ? 'default' : 'pointer',
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        transition: 'all 0.12s ease',
       }}
-      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.setProperty('color', 'var(--accent)') }}
-      onMouseLeave={(e) => { if (!disabled) e.currentTarget.style.color = colors.bone }}
     >
       {children}
     </button>

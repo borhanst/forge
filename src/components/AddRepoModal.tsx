@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import { open } from '@tauri-apps/plugin-dialog'
-import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { colors, fonts, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
 
 type Mode = 'local' | 'clone'
@@ -71,32 +71,33 @@ export default function AddRepoModal({
         style={{
           background: colors.iron,
           border: `1px solid ${colors.steelHi}`,
-          borderRadius: 10,
-          padding: 32,
+          borderRadius: 12,
+          padding: 28,
           width: 460,
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 28, right: 28, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.5,
-          }}
-        />
+        <button
+          onClick={onClose}
+          className="modal-close"
+          aria-label="Close"
+          title="Close"
+        >
+          ×
+        </button>
 
         <div style={labelStyle}>Add to the floor</div>
         <h2
           style={{
-            ...displayItalic,
             margin: '4px 0 18px',
-            fontSize: 28,
+            fontFamily: fonts.body,
+            fontSize: 20,
+            fontWeight: 600,
             color: colors.cream,
-            letterSpacing: '-0.015em',
+            letterSpacing: '-0.005em',
           }}
         >
           Mount a repository
@@ -108,7 +109,7 @@ export default function AddRepoModal({
             gap: 0,
             marginBottom: 18,
             background: colors.coal,
-            borderRadius: 4,
+            borderRadius: 8,
             padding: 3,
             border: `1px solid ${colors.steel}`,
           }}
@@ -120,17 +121,15 @@ export default function AddRepoModal({
               style={{
                 flex: 1,
                 padding: '7px 0',
-                fontSize: 11,
-                fontFamily: fonts.mono,
-                fontWeight: 600,
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
+                fontSize: 12,
+                fontFamily: fonts.body,
+                fontWeight: 500,
                 cursor: 'pointer',
                 border: 'none',
-                borderRadius: 3,
+                borderRadius: 6,
                 background: mode === m ? colors.iron : 'transparent',
-                color: mode === m ? colors.accent : colors.ash,
-                boxShadow: mode === m ? `0 0 0 1px ${colors.steelHi}, 0 1px 0 rgba(0,0,0,0.4)` : 'none',
+                color: mode === m ? colors.ivory : colors.ash,
+                boxShadow: mode === m ? `0 0 0 1px ${colors.steelHi}` : 'none',
                 transition: 'all 0.12s ease',
               }}
             >
@@ -147,7 +146,7 @@ export default function AddRepoModal({
               onChange={e => setLocalPath(e.target.value)}
               placeholder="/path/to/your/repo"
             />
-            <button className="btn-ghost" onClick={pickFolder}>Browse</button>
+            <button className="btn-secondary" onClick={pickFolder}>Browse</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -164,7 +163,7 @@ export default function AddRepoModal({
                 onChange={e => setCloneTo(e.target.value)}
                 placeholder="Clone into folder…"
               />
-              <button className="btn-ghost" onClick={pickFolder}>Browse</button>
+              <button className="btn-secondary" onClick={pickFolder}>Browse</button>
             </div>
           </div>
         )}
@@ -178,7 +177,7 @@ export default function AddRepoModal({
               background: 'rgba(208,90,62,0.06)',
               border: `1px solid rgba(208,90,62,0.2)`,
               padding: '8px 10px',
-              borderRadius: 4,
+              borderRadius: 6,
             }}
           >
             {error}
@@ -188,16 +187,16 @@ export default function AddRepoModal({
         <div
           style={{
             display: 'flex',
-            gap: 10,
-            marginTop: 24,
+            gap: 8,
+            marginTop: 22,
             justifyContent: 'flex-end',
           }}
         >
-          <button className="btn-ghost" onClick={onClose} disabled={loading}>
+          <button className="btn-secondary" onClick={onClose} disabled={loading}>
             Cancel
           </button>
           <button
-            className="btn-strike"
+            className="btn-primary"
             onClick={handleSubmit}
             disabled={loading}
           >

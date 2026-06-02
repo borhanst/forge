@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import type { BranchInfo } from '../lib/tauri'
-import { colors, fonts, displayItalic, labelStyle } from '../theme'
+import { colors, fonts, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
 import { confirmDialog } from './ConfirmDialog'
 
@@ -121,37 +121,33 @@ export default function MergeModal({
         style={{
           background: colors.iron,
           border: `1px solid ${colors.steelHi}`,
-          borderRadius: 10,
-          padding: 32,
+          borderRadius: 12,
+          padding: 28,
           width: 460,
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 28, right: 28, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.5,
-          }}
-        />
+        <button onClick={onClose} className="modal-close" aria-label="Close" title="Close">
+          ×
+        </button>
 
         <div style={labelStyle}>Quench & weld</div>
         <h2
           style={{
-            ...displayItalic,
             margin: '4px 0 4px',
-            fontSize: 26,
+            fontFamily: fonts.body,
+            fontSize: 20,
+            fontWeight: 600,
             color: colors.cream,
-            letterSpacing: '-0.015em',
+            letterSpacing: '-0.005em',
           }}
         >
           Merge {workspaceName}
         </h2>
-        <p style={{ color: colors.smoke, fontSize: 13, marginBottom: 20, lineHeight: 1.5 }}>
+        <p style={{ color: colors.smoke, fontSize: 12.5, marginBottom: 18, lineHeight: 1.5 }}>
           Fold this anvil's work into the target branch.
         </p>
 
@@ -162,7 +158,7 @@ export default function MergeModal({
               background: 'rgba(93,180,140,0.06)',
               border: `1px solid rgba(93,180,140,0.25)`,
               padding: '12px 14px',
-              borderRadius: 6,
+              borderRadius: 8,
               color: colors.patina,
               fontSize: 13,
               margin: '8px 0',
@@ -206,7 +202,7 @@ export default function MergeModal({
             <button
               onClick={handleResolve}
               disabled={resolving}
-              className="btn-strike"
+              className="btn-primary"
               style={{ width: '100%' }}
             >
               {resolving ? 'Resolving…' : 'Resolve with agent'}
@@ -218,7 +214,7 @@ export default function MergeModal({
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <div style={{ ...labelStyle, fontSize: 9, marginBottom: 6 }}>
                 Target branch
@@ -284,7 +280,7 @@ export default function MergeModal({
               background: 'rgba(208,90,62,0.06)',
               border: `1px solid rgba(208,90,62,0.25)`,
               padding: '8px 10px',
-              borderRadius: 4,
+              borderRadius: 6,
             }}
           >
             {error}
@@ -294,13 +290,13 @@ export default function MergeModal({
         <div
           style={{
             display: 'flex',
-            gap: 10,
+            gap: 8,
             marginTop: 22,
             justifyContent: 'flex-end',
           }}
         >
           <button
-            className="btn-ghost"
+            className="btn-secondary"
             onClick={onClose}
             disabled={loading || resolving}
           >
@@ -308,7 +304,7 @@ export default function MergeModal({
           </button>
           {!result && (
             <button
-              className="btn-strike"
+              className="btn-primary"
               onClick={handleMerge}
               disabled={loading || hasChanges || !targetBranch}
               title={hasChanges ? 'Commit pending changes first' : ''}

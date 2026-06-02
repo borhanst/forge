@@ -169,25 +169,25 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
           style={{ marginBottom: 10 }}
         />
         <button
-          className="btn-strike"
+          className="btn-primary"
           onClick={handleCommitPush}
           disabled={loading || !commitMsg.trim()}
           style={{ width: '100%' }}
         >
-          {loading ? 'Striking…' : 'Commit · Push'}
+          {loading ? 'Committing…' : 'Commit · Push'}
         </button>
       </Section>
 
       {pr && (
         <Section title="Pull request">
-          <div
-            style={{
-              background: colors.coal,
-              borderRadius: 6,
-              border: `1px solid ${colors.steel}`,
-              padding: 14,
-            }}
-          >
+            <div
+              style={{
+                background: colors.coal,
+                borderRadius: 8,
+                border: `1px solid ${colors.steel}`,
+                padding: 14,
+              }}
+            >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <span
                 style={{
@@ -290,7 +290,7 @@ export default function PRPanel({ workspaceId, gitStatus, onRefreshDiff }: Props
           </label>
 
           <button
-            className="btn-strike"
+            className="btn-primary"
             onClick={handleCreatePr}
             disabled={loading || !hasToken || !title.trim()}
             style={{ marginTop: 8, width: '100%' }}
@@ -339,18 +339,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         style={{
           ...labelStyle,
           marginBottom: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          color: colors.smoke,
         }}
       >
-        <span
-          style={{
-            width: 3, height: 3, borderRadius: '50%',
-            background: colors.accent,
-            boxShadow: `0 0 4px var(--accent)`,
-          }}
-        />
         {title}
       </div>
       {children}

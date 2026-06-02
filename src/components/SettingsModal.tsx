@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useForgeStore, type SettingsTabId } from '../store'
-import { colors, fonts, labelStyle, displayItalic } from '../theme'
+import { colors, fonts, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
 import { GeneralSection } from './settings/GeneralSection'
 import { ThemeSection } from './settings/ThemeSection'
@@ -56,36 +56,37 @@ export default function SettingsModal() {
           maxHeight: '88vh',
           color: colors.ivory,
           fontFamily: fonts.body,
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,106,31,0.06)',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7)',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0, left: 28, right: 28, height: 1,
-            background: `linear-gradient(90deg, transparent, var(--accent), transparent)`,
-            opacity: 0.5,
-          }}
-        />
+        <button
+          onClick={close}
+          className="modal-close"
+          aria-label="Close settings"
+          title="Close"
+        >
+          ×
+        </button>
 
         <header
           style={{
-            padding: '22px 28px 16px',
+            padding: '18px 28px 14px',
             borderBottom: `1px solid ${colors.steel}`,
           }}
         >
           <div style={labelStyle}>Workshop configuration</div>
           <h2
             style={{
-              ...displayItalic,
               margin: '4px 0 0',
-              fontSize: 26,
+              fontFamily: fonts.body,
+              fontSize: 20,
+              fontWeight: 600,
               color: colors.cream,
-              letterSpacing: '-0.015em',
+              letterSpacing: '-0.005em',
             }}
           >
             Settings
@@ -132,13 +133,13 @@ export default function SettingsModal() {
             display: 'flex',
             justifyContent: 'flex-end',
             alignItems: 'center',
-            gap: 12,
+            gap: 8,
           }}
         >
           <span style={{ ...labelStyle, marginRight: 'auto', color: colors.ash }}>
             Saved automatically
           </span>
-          <button className="btn-strike" onClick={close}>
+          <button className="btn-primary" onClick={close}>
             Done
           </button>
         </footer>
@@ -158,7 +159,7 @@ function TabItem({ id, active, label }: { id: SettingsTabId; active: boolean; la
         border: 'none',
         color: active ? colors.ivory : colors.bone,
         fontFamily: fonts.body,
-        fontSize: 12.5,
+        fontSize: 13,
         padding: '9px 18px',
         textAlign: 'left',
         cursor: 'pointer',
@@ -177,7 +178,6 @@ function TabItem({ id, active, label }: { id: SettingsTabId; active: boolean; la
             width: 2,
             background: colors.accent,
             borderRadius: '0 2px 2px 0',
-            boxShadow: `0 0 8px var(--accent)`,
           }}
         />
       )}
