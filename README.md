@@ -2,6 +2,8 @@
 
 Forge is a [Tauri v2](https://v2.tauri.app) desktop application — a Rust-powered framework that compiles to native binaries with a web frontend — that provides a GUI for running AI coding agents (Claude Code, OpenAI Codex, Google Gemini) against git repositories. Each agent session runs in an isolated git worktree with real-time output streaming, git diff visualization, and support for commit/push and GitHub PR creation.
 
+Built with Tauri v2 for a native, cross-platform desktop experience.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -12,8 +14,7 @@ Forge is a [Tauri v2](https://v2.tauri.app) desktop application — a Rust-power
 | Git | git2 (libgit2 bindings) |
 | Auth | OS keychain via keyring |
 | HTTP | reqwest (with rustls) |
-| Agent providers | Claude Code, OpenAI Codex, Google Gemini |
-| Planned providers | Qwen CLI |
+| Agent providers | Claude Code, OpenAI Codex, Google Gemini, OpenCode, OpenClaude, Kilo Code |
 
 ## Architecture
 
@@ -26,3 +27,15 @@ Forge is a [Tauri v2](https://v2.tauri.app) desktop application — a Rust-power
 4. **Pluggable providers** — `AgentProvider` trait with implementations for Claude, Codex, Gemini, and Mock. Each defines its own binary + args and availability check via `which`.
 
 5. **Service layer** — Business logic lives in `services/`: `git_service.rs` (libgit2 operations), `workspace_service.rs` (CRUD with random branch names), `github_client.rs` (REST API for PRs), and `agent_manager.rs` (legacy runner).
+
+## Supported Agents
+
+| Agent | CLI Binary | Description |
+|-------|-----------|-------------|
+| Claude Code | `claude` | Anthropic Claude Code CLI |
+| OpenAI Codex | `codex` | OpenAI Codex CLI agent |
+| Gemini CLI | `gemini` | Google Gemini CLI agent |
+| OpenCode | `opencode` | Open-source multi-model coding agent (local or cloud) |
+| OpenClaude | `openclaude` | Open-source Claude CLI — local Ollama or custom endpoint |
+| Kilo Code | `kilo` | Kilo Code CLI agent |
+| Mock Agent | `echo` | Test agent (built-in, for development) |

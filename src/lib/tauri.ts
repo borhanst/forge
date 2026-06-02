@@ -1,5 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification'
 
 export type { UnlistenFn }
 
@@ -346,4 +351,29 @@ export const forgeEvents = {
 
   onTerminalExit: (cb: (e: TerminalExitEvent) => void): Promise<UnlistenFn> =>
     listen<TerminalExitEvent>('terminal:exit', (e) => cb(e.payload)),
+}
+
+let permissionRequested = false
+
+/**
+ * Show a native OS notification from the frontend.
+ * Handles the permission dance (isPermissionGranted -> requestPermission) on
+ * first call. Safe to call from anywhere; silently no-ops if permission is
+ * denied. Most Forge notifications are fired from the Rust side; this helper
+ * is for any frontend-triggered notifications.
+ */
+export async function notify(title: string, body: string): Promise<void> {
+  try {
+    let granted = await isPermissionGranted()
+    if (!granted && !permissionRequested) {
+      permissionRequested = true
+      const result = await requestPermission()
+      granted = result === 'granted'
+    }
+    if (granted) {
+      sendNotification({ title, body })
+    }
+  } catch (e) {
+    console.warn('notify() failed:', e)
+  }
 }

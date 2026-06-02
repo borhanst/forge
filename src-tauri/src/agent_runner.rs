@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_notification::NotificationExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{Mutex, oneshot};
@@ -141,6 +142,30 @@ pub async fn run(
                 "id": ws.id,
                 "status": ws.status,
             }));
+
+            // OS notification on terminal success/failure (skip user-cancelled).
+            // spawn_streaming returns -1 on cancel, which currently surfaces as
+            // "error" via the match above, so we filter that out by exit code.
+            if final_status == "done" || (final_status == "error" && exit_code != Some(-1)) {
+                let title = if final_status == "done" {
+                    format!("Agent finished — {}", ws.city_name)
+                } else {
+                    format!("Agent failed — {}", ws.city_name)
+                };
+                let body = match exit_code {
+                    Some(code) => format!("Exit code {}", code),
+                    None => "Process exited with an error".to_string(),
+                };
+                if let Err(e) = app
+                    .notification()
+                    .builder()
+                    .title(title)
+                    .body(body)
+                    .show()
+                {
+                    tracing::warn!("Failed to show OS notification: {}", e);
+                }
+            }
         }
 
         // Remove from running agents map so the workspace can be reused
