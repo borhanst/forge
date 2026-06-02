@@ -133,6 +133,22 @@ export interface PullRequestRecord {
   updated_at:   string | null
 }
 
+export interface TerminalDataEvent {
+  workspace_id: string
+  data_b64:     string
+}
+
+export interface TerminalExitEvent {
+  workspace_id: string
+  exit_code:    number | null
+}
+
+export interface TerminalAttachInfo {
+  workspace_id:    string
+  scrollback_b64:  string
+  is_running:      boolean
+}
+
 export const forge = {
   ping: () =>
     invoke<string>('ping'),
@@ -258,6 +274,21 @@ export const forge = {
 
   updateWorkspaceMergeSettings: (workspaceId: string, mergePush: boolean, mergeCleanup: string) =>
     invoke<void>('update_workspace_merge_settings', { req: { workspace_id: workspaceId, merge_push: mergePush, merge_cleanup: mergeCleanup } }),
+
+  terminalOpen: (workspaceId: string) =>
+    invoke<void>('terminal_open', { workspaceId }),
+
+  terminalWrite: (workspaceId: string, dataB64: string) =>
+    invoke<void>('terminal_write', { workspaceId, dataB64 }),
+
+  terminalResize: (workspaceId: string, cols: number, rows: number) =>
+    invoke<void>('terminal_resize', { workspaceId, cols, rows }),
+
+  terminalClose: (workspaceId: string) =>
+    invoke<void>('terminal_close', { workspaceId }),
+
+  terminalAttach: (workspaceId: string) =>
+    invoke<TerminalAttachInfo | null>('terminal_attach', { workspaceId }),
 }
 
 export const forgeEvents = {
@@ -275,4 +306,10 @@ export const forgeEvents = {
 
   onProvidersRefresh: (cb: () => void): Promise<UnlistenFn> =>
     listen('providers:refresh', () => cb()),
+
+  onTerminalData: (cb: (e: TerminalDataEvent) => void): Promise<UnlistenFn> =>
+    listen<TerminalDataEvent>('terminal:data', (e) => cb(e.payload)),
+
+  onTerminalExit: (cb: (e: TerminalExitEvent) => void): Promise<UnlistenFn> =>
+    listen<TerminalExitEvent>('terminal:exit', (e) => cb(e.payload)),
 }

@@ -212,6 +212,9 @@ pub async fn delete_workspace(
     .map_err(|e| e.to_string())?
     .map_err(|e| format!("Git worktree remove error: {}", e))?;
 
+    // Kill any PTY-backed shell for this workspace (best effort).
+    let _ = crate::services::terminal_service::close(&state.terminals, &workspace_id).await;
+
     workspace_service::delete_workspace_record(&state.db, &workspace_id)
         .await
         .map_err(|e| e.to_string())?;

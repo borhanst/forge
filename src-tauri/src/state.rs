@@ -81,6 +81,7 @@ pub struct RunningAgent {
 pub struct AppState {
     pub db: SqlitePool,
     pub running_agents: Arc<Mutex<HashMap<String, RunningAgent>>>,
+    pub terminals: Arc<Mutex<HashMap<String, crate::services::terminal_service::TerminalSession>>>,
     pub app_data_dir: String,
     pub shell_env: HashMap<String, String>,
 }
@@ -93,6 +94,7 @@ impl AppState {
         Self {
             db,
             running_agents: Arc::new(Mutex::new(HashMap::new())),
+            terminals: Arc::new(Mutex::new(HashMap::new())),
             app_data_dir,
             shell_env,
         }

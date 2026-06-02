@@ -4,6 +4,7 @@ import { MainPanel } from './components/MainPanel'
 import { useAgentEvents } from './hooks/useAgentEvents'
 import { forge, forgeEvents } from './lib/tauri'
 import { useForgeStore } from './store'
+import '@xterm/xterm/css/xterm.css'
 import './App.css'
 
 const spinStyle = document.createElement('style')

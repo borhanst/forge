@@ -40,6 +40,19 @@ async fn main() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // Best-effort cleanup of any PTY-backed shells. Even if the
+                // async task doesn't finish before the process exits, the OS
+                // will reap child PTY processes on parent death.
+                let app = window.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(state) = app.try_state::<AppState>() {
+                        crate::services::terminal_service::kill_all(&state.terminals).await;
+                    }
+                });
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::list_providers,
@@ -85,6 +98,12 @@ async fn main() {
             commands::delete_github_token,
             commands::create_pr,
             commands::get_pr_status,
+
+            commands::terminal_open,
+            commands::terminal_write,
+            commands::terminal_resize,
+            commands::terminal_close,
+            commands::terminal_attach,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Forge");

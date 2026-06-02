@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useForgeStore } from '../store'
 import { forge } from '../lib/tauri'
-import { Terminal } from './Terminal'
+import { BottomPanel } from './BottomPanel'
 import { PromptInput } from './PromptInput'
 import RightPanel from './RightPanel'
 
@@ -109,8 +109,8 @@ export function MainPanel() {
           </span>
         </div>
 
-        {/* Terminal output */}
-        <Terminal workspaceId={ws.id} />
+        {/* Bottom panel: Agent log | Shell tab */}
+        <BottomPanel workspaceId={ws.id} />
 
         {/* Prompt input */}
         <PromptInput workspaceId={ws.id} />
