@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, workspace_id, file_path, line_number, content, author, created_at FROM line_comments WHERE workspace_id = ? ORDER BY created_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "workspace_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "line_number",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "content",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "author",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8caebc0164c88dd33ca51938de7981c346d691fa95def0943a69e43e02916772"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO line_comments (workspace_id, file_path, line_number, content, author, created_at) VALUES (?, ?, ?, ?, 'User', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "9f1fb5e0ba3e339508d6fa0c7e2469fd49196bf3e8e23e83d74fdd1083210f34"
+}

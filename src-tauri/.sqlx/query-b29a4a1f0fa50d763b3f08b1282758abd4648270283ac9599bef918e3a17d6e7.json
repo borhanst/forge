@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE workspaces SET merge_push = ?, merge_cleanup = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b29a4a1f0fa50d763b3f08b1282758abd4648270283ac9599bef918e3a17d6e7"
+}

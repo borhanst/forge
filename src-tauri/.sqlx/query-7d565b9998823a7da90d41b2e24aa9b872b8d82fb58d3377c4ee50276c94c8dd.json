@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM pull_requests WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "workspace_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "pr_number",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "title",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "html_url",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "state",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "merged",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "draft",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "7d565b9998823a7da90d41b2e24aa9b872b8d82fb58d3377c4ee50276c94c8dd"
+}

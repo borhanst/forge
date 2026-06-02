@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at, archived_at, merge_push, merge_cleanup FROM workspaces WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "repo_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "city_name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "branch",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "worktree_path",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "provider",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "provider_config",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "merge_push",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "merge_cleanup",
+        "ordinal": 11,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "47f9a91f0a34f218bfea2a6045f5b85c24fa977b17cfa84069d74233560d1750"
+}

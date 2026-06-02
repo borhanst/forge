@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT city_name FROM workspaces WHERE repo_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "city_name",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a80f0bf84f62892bc769ca784ee50a57f69eef92d8de6b55240cd03e38dc0272"
+}

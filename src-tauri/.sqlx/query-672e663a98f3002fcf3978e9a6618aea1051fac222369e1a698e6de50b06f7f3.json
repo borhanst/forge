@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO workspaces\n           (id, repo_id, city_name, branch, worktree_path, provider, provider_config, status, created_at)\n           VALUES (?, ?, ?, ?, ?, ?, ?, 'idle', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "672e663a98f3002fcf3978e9a6618aea1051fac222369e1a698e6de50b06f7f3"
+}

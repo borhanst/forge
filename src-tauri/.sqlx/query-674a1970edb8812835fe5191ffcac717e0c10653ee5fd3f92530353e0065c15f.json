@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pull_requests\n           (id, workspace_id, pr_number, title, html_url, state, merged, draft, created_at, updated_at)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "674a1970edb8812835fe5191ffcac717e0c10653ee5fd3f92530353e0065c15f"
+}

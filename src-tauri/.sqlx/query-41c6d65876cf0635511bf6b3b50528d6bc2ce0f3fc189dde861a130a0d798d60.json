@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM repositories WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "local_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "github_url",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "owner",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "repo_name",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "41c6d65876cf0635511bf6b3b50528d6bc2ce0f3fc189dde861a130a0d798d60"
+}

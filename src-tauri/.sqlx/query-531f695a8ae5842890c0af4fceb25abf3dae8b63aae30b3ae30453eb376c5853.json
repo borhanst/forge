@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO output_lines (session_id, stream, content, created_at) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "531f695a8ae5842890c0af4fceb25abf3dae8b63aae30b3ae30453eb376c5853"
+}
