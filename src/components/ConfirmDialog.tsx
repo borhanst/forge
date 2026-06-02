@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
 
 interface ConfirmOptions {
-  title:       string
-  body:        string
+  title:        string
+  body:         string
   confirmText?: string
   cancelText?:  string
   destructive?: boolean
+  requireText?: string
 }
 
 let pending: ((v: boolean) => void) | null = null
@@ -22,6 +23,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 
 export function ConfirmDialogHost() {
   const [state, set] = useState<{ open: boolean; opts: ConfirmOptions | null }>({ open: false, opts: null })
+  const [typed, setTyped] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -29,18 +31,20 @@ export function ConfirmDialogHost() {
     return () => { setState = null }
   }, [])
 
-  if (!state.open || !state.opts) return null
-
-  const close = (v: boolean) => {
+  const close = useCallback((v: boolean) => {
     pending?.(v)
     pending = null
     set({ open: false, opts: null })
-  }
+    setTyped('')
+  }, [])
 
   useModalEscape(rootRef, () => close(false))
 
+  if (!state.open || !state.opts) return null
+
   const opts = state.opts
   const isDestructive = opts.destructive
+  const matches = opts.requireText ? typed === opts.requireText : true
 
   return (
     <div
@@ -67,7 +71,7 @@ export function ConfirmDialogHost() {
           border: `1px solid ${colors.steelHi}`,
           borderRadius: 10,
           padding: 26,
-          width: 400,
+          width: 420,
           color: colors.ivory,
           fontFamily: fonts.body,
           boxShadow: '0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(208,90,62,0.08)',
@@ -94,9 +98,41 @@ export function ConfirmDialogHost() {
         >
           {opts.title}
         </h3>
-        <p style={{ color: colors.bone, fontSize: 12.5, lineHeight: 1.6, margin: '0 0 22px' }}>
+        <p style={{ color: colors.bone, fontSize: 12.5, lineHeight: 1.6, margin: opts.requireText ? '0 0 14px' : '0 0 22px' }}>
           {opts.body}
         </p>
+        {opts.requireText && (
+          <div style={{ marginBottom: 18 }}>
+            <div
+              style={{
+                fontFamily: fonts.mono,
+                fontSize: 9.5,
+                fontWeight: 600,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: colors.ash,
+                marginBottom: 6,
+              }}
+            >
+              Type <span style={{ color: colors.ivory }}>{opts.requireText}</span> to confirm
+            </div>
+            <input
+              className="forge-input"
+              autoFocus
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && matches) {
+                  e.preventDefault()
+                  close(true)
+                }
+              }}
+              spellCheck={false}
+              autoComplete="off"
+              style={{ width: '100%' }}
+            />
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className="btn-ghost" onClick={() => close(false)}>
             {opts.cancelText ?? 'Cancel'}
@@ -104,6 +140,7 @@ export function ConfirmDialogHost() {
           <button
             className={isDestructive ? 'btn-danger' : 'btn-strike'}
             onClick={() => close(true)}
+            disabled={!matches}
           >
             {opts.confirmText ?? 'Confirm'}
           </button>

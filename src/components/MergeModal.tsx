@@ -3,6 +3,7 @@ import { forge } from '../lib/tauri'
 import type { BranchInfo } from '../lib/tauri'
 import { colors, fonts, displayItalic, labelStyle } from '../theme'
 import { useModalEscape } from '../hooks/useModalEscape'
+import { confirmDialog } from './ConfirmDialog'
 
 interface Props {
   workspaceId: string
@@ -47,6 +48,17 @@ export default function MergeModal({
 
   const handleMerge = async () => {
     setError('')
+    if (cleanup === 'delete') {
+      const ok = await confirmDialog({
+        title: 'Weld and delete the branch?',
+        body: `After the merge, the branch ${targetBranch} and its worktree will be permanently removed. Session history in Forge is preserved, but the branch itself is gone.`,
+        confirmText: 'Weld & delete',
+        cancelText: 'Cancel',
+        destructive: true,
+        requireText: targetBranch,
+      })
+      if (!ok) return
+    }
     setLoading(true)
     try {
       const res = await forge.mergeWorktree(workspaceId, targetBranch, pushToRemote, cleanup)

@@ -116,6 +116,7 @@ export default function Sidebar() {
 
   const handleDelete = async (wsId: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    const ws = workspaces.find(w => w.id === wsId)
     if (confirmBeforeDelete) {
       const ok = await confirmDialog({
         title: 'Delete this workspace?',
@@ -123,6 +124,7 @@ export default function Sidebar() {
         confirmText: 'Delete',
         cancelText: 'Keep',
         destructive: true,
+        requireText: ws?.city_name,
       })
       if (!ok) return
     }
@@ -316,7 +318,7 @@ export default function Sidebar() {
                     if (confirmBeforeDelete) {
                       const ok = await confirmDialog({
                         title: `Remove "${repo.name}"?`,
-                        body: 'This removes the repository from Forge. The folder on disk is not touched, and workspaces can no longer be opened.',
+                        body: 'This removes the repository from Forge. The folder on disk is not touched. Existing workspaces on this repo will be orphaned and can no longer be opened from the sidebar.',
                         confirmText: 'Remove',
                         cancelText: 'Keep',
                         destructive: true,

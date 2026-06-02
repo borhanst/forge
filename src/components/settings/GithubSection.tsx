@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForgeStore } from '../../store'
 import { colors, fonts } from '../../theme'
 import type { GitHubUser } from '../../lib/tauri'
+import { confirmDialog } from '../ConfirmDialog'
 
 export function GithubSection() {
   const [hasToken, setHasToken] = useState(false)
@@ -49,6 +50,14 @@ export function GithubSection() {
   }
 
   const forget = async () => {
+    const ok = await confirmDialog({
+      title: 'Forget GitHub token?',
+      body: 'Removes the token from the OS keychain. Future pull requests will fail until you add a new one. Commit and push are not affected — they use your local git credentials.',
+      confirmText: 'Forget',
+      cancelText: 'Keep',
+      destructive: true,
+    })
+    if (!ok) return
     setError(''); setInfo('')
     setLoading(true)
     try {
