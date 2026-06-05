@@ -47,7 +47,9 @@ pub async fn run(
     let provider = providers::get_provider(&provider_id)
         .with_context(|| format!("Unknown provider: {}", provider_id))?;
 
-    let (binary, args) = provider.build_command(&prompt, &worktree_path, &provider_options);
+    let path_env = shell_env.get("PATH").cloned().unwrap_or_default();
+    let (binary, args) =
+        provider.build_command(&prompt, &worktree_path, &provider_options, &path_env);
     let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
 
     // Emit "running" status immediately
@@ -197,12 +199,20 @@ pub async fn spawn_streaming(
         ));
     }
 
+    // `binary` was already resolved to an absolute path by `provider.build_command`
+    // via `resolve_provider_binary`. Trust it; only verify it still exists in case
+    // the install location was removed between command construction and spawn.
     let path_env = shell_env.get("PATH").cloned().unwrap_or_default();
-    let resolved = providers::resolve_binary_path(&binary, &path_env)
-        .ok_or_else(|| anyhow::anyhow!(
-            "{} CLI `{}` not found on PATH. Install it from the providers panel.",
-            log_prefix, binary
-        ))?;
+    let resolved = if std::path::Path::new(&binary).exists() {
+        binary.clone()
+    } else {
+        providers::resolve_binary_path(&binary, &path_env).ok_or_else(|| {
+            anyhow::anyhow!(
+                "{} CLI `{}` not found on PATH. Install it from the providers panel.",
+                log_prefix, binary
+            )
+        })?
+    };
 
     let full_cmd = format!("{} {}", resolved, args.join(" "));
     tracing::info!("Spawning: {} in {}", full_cmd, worktree_path);

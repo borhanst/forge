@@ -8,6 +8,7 @@ pub mod openclaude;
 
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ProviderInfo {
@@ -29,6 +30,12 @@ pub struct AgentOutput {
     pub content: String,
 }
 
+/// The full set of directories that may legitimately contain a user-installed
+/// provider binary. The first entry that contains `<dir>/<binary>` wins.
+/// `well_known_binary_dirs()` is defined in `crate::state` and re-exported
+/// through the `state` module to avoid duplicating the path list.
+pub use crate::state::well_known_binary_dirs;
+
 #[async_trait]
 pub trait AgentProvider: Send + Sync {
     fn info(&self) -> ProviderInfo;
@@ -37,12 +44,23 @@ pub trait AgentProvider: Send + Sync {
         which::which(self.info().cli_binary).is_ok()
     }
 
-    /// Check availability using the resolved shell PATH (catches nvm/pyenv binaries)
+    /// Check availability using the resolved shell PATH plus the well-known
+    /// fallback dirs. Catches nvm/fnm/volta/cargo/`npm install -g` binaries
+    /// even when the user's `~/.bashrc` PATH exports weren't captured.
     fn is_available_in_shell(&self, shell_path: &str) -> bool {
-        check_binary_in_shell(self.info().cli_binary, shell_path)
+        resolve_provider_binary(self.info().cli_binary, shell_path).is_some()
     }
 
-    fn build_command(&self, prompt: &str, worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>);
+    /// Build the command to spawn. `shell_path` is the resolved user PATH
+    /// (from `state.shell_path()`) and is used to resolve the absolute path
+    /// of `cli_binary` via the shared `resolve_provider_binary` helper.
+    fn build_command(
+        &self,
+        prompt: &str,
+        worktree_path: &str,
+        options: &HashMap<String, String>,
+        shell_path: &str,
+    ) -> (String, Vec<String>);
 
     /// Ordered list of install attempts. Runner tries each in order, stops at first exit-0.
     fn install_options(&self) -> Vec<Vec<String>> {
@@ -55,45 +73,60 @@ pub trait AgentProvider: Send + Sync {
     }
 }
 
-/// Check whether `binary` is on the user's shell PATH.
-/// Extracted from the `AgentProvider::is_available_in_shell` default body so that
-/// overrides can fall back to it without recursing into themselves.
+/// Walk a PATH-style colon-separated string and return each directory.
+fn split_path(path: &str) -> Vec<PathBuf> {
+    path.split(':')
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
+/// Check every directory in `shell_path` plus the well-known fallback list for
+/// `binary`. Returns the first absolute path that exists, or None.
+pub fn resolve_provider_binary(binary: &str, shell_path: &str) -> Option<String> {
+    // If already an absolute path, return it directly if the file exists.
+    if binary.starts_with('/') {
+        return if std::path::Path::new(binary).exists() {
+            Some(binary.to_string())
+        } else {
+            None
+        };
+    }
+
+    let mut tried: Vec<PathBuf> = Vec::new();
+    for dir in split_path(shell_path) {
+        tried.push(dir.clone());
+        let candidate = dir.join(binary);
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+
+    for dir in well_known_binary_dirs() {
+        let pb = PathBuf::from(&dir);
+        if tried.contains(&pb) {
+            continue;
+        }
+        let candidate = pb.join(binary);
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+
+    // Last resort: ask the user's shell to resolve it. This catches the case
+    // where the binary lives in a path the static list doesn't know about but
+    // the shell's login environment does.
+    if let Some(path) = resolve_binary_path(binary, shell_path) {
+        return Some(path);
+    }
+
+    None
+}
+
+/// Check whether `binary` is on the user's shell PATH or in a well-known
+/// fallback directory. Used by `is_available_in_shell` and the install modal.
 pub fn check_binary_in_shell(binary: &str, shell_path: &str) -> bool {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| {
-        #[cfg(target_os = "macos")]
-        { "/bin/zsh".to_string() }
-        #[cfg(not(target_os = "macos"))]
-        { "/bin/bash".to_string() }
-    });
-    let escaped = format!("'{}'", binary.replace('\'', "'\\''"));
-
-    if std::process::Command::new(&shell)
-        .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
-        .env("PATH", shell_path)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    if std::process::Command::new("sh")
-        .args(["-c", &format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped)])
-        .env("PATH", shell_path)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    let home = std::env::var("HOME").unwrap_or_default();
-    let fallback_paths = vec![
-        format!("{}/.npm-global/bin/{}", home, binary),
-        format!("{}/.local/bin/{}", home, binary),
-        format!("/usr/local/bin/{}", binary),
-    ];
-    fallback_paths.iter().any(|p| std::path::Path::new(p).exists())
+    resolve_provider_binary(binary, shell_path).is_some()
 }
 
 /// Resolve a binary name to its absolute path via the user's shell.
@@ -101,7 +134,11 @@ pub fn check_binary_in_shell(binary: &str, shell_path: &str) -> bool {
 pub fn resolve_binary_path(binary: &str, shell_path: &str) -> Option<String> {
     // If already an absolute path, return it directly if the file exists
     if binary.starts_with('/') {
-        return if std::path::Path::new(binary).exists() { Some(binary.to_string()) } else { None };
+        return if std::path::Path::new(binary).exists() {
+            Some(binary.to_string())
+        } else {
+            None
+        };
     }
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| {
@@ -128,7 +165,10 @@ pub fn resolve_binary_path(binary: &str, shell_path: &str) -> Option<String> {
     #[cfg(not(target_os = "windows"))]
     {
         let escaped = format!("'{}'", binary.replace('\'', "'\\''"));
-        let cmd = format!("command -v {} 2>/dev/null || which {} 2>/dev/null", escaped, escaped);
+        let cmd = format!(
+            "command -v {} 2>/dev/null || which {} 2>/dev/null",
+            escaped, escaped
+        );
         let out = std::process::Command::new(&shell)
             .args(["-c", &cmd])
             .env("PATH", shell_path)

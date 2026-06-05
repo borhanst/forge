@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { forge } from '../lib/tauri'
 import { useForgeStore } from '../store'
+import { generateId } from '../lib/chat-parser'
 import { colors, fonts } from '../theme'
 import {
   OPENCODE_AGENTS,
@@ -24,6 +25,8 @@ export function PromptInput({ workspaceId }: Props) {
 
   const runningAgents = useForgeStore(s => s.runningAgents)
   const clearAgentOutput = useForgeStore(s => s.clearAgentOutput)
+  const clearChatMessages = useForgeStore(s => s.clearChatMessages)
+  const addChatMessage = useForgeStore(s => s.addChatMessage)
   const setRunningAgent = useForgeStore(s => s.setRunningAgent)
   const workspaces = useForgeStore(s => s.workspaces)
   const setWorkspaces = useForgeStore(s => s.setWorkspaces)
@@ -37,6 +40,23 @@ export function PromptInput({ workspaceId }: Props) {
     setError('')
     setSubmitting(true)
     clearAgentOutput(workspaceId)
+    clearChatMessages(workspaceId)
+    addChatMessage(workspaceId, {
+      id: generateId(),
+      role: 'user',
+      content: prompt.trim(),
+      toolCalls: [],
+      fileChanges: [],
+      timestamp: Date.now(),
+    })
+    addChatMessage(workspaceId, {
+      id: generateId(),
+      role: 'assistant',
+      content: '',
+      toolCalls: [],
+      fileChanges: [],
+      timestamp: Date.now(),
+    })
 
     try {
       const sessionId = await forge.runAgent(workspaceId, prompt.trim())

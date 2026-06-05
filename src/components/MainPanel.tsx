@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useForgeStore } from '../store'
 import { forge } from '../lib/tauri'
+import { buildChatMessages } from '../lib/chat-parser'
 import { BottomPanel } from './BottomPanel'
 import { PromptInput } from './PromptInput'
 import RightPanel from './RightPanel'
@@ -29,6 +30,7 @@ export function MainPanel() {
     repositories,
     activeWorkspaceId,
     setAgentOutput,
+    setChatMessages,
     runningAgents,
     rightPanelOpen,
     toggleRightPanel,
@@ -46,6 +48,7 @@ export function MainPanel() {
     forge.getLatestSession(ws.id).then((session) => {
       if (!session) {
         setAgentOutput(ws.id, [])
+        setChatMessages(ws.id, [])
         return
       }
 
@@ -56,9 +59,12 @@ export function MainPanel() {
           ts: new Date(l.created_at).getTime()
         }))
         setAgentOutput(ws.id, terminalLines)
+
+        const chatMessages = buildChatMessages(session.prompt, terminalLines)
+        setChatMessages(ws.id, chatMessages)
       })
     })
-  }, [ws?.id, setAgentOutput])
+  }, [ws?.id, setAgentOutput, setChatMessages])
 
   if (!ws) {
     return <EmptyHearth />

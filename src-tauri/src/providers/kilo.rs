@@ -1,4 +1,4 @@
-use super::{AgentProvider, ProviderInfo};
+use super::{AgentProvider, ProviderInfo, resolve_provider_binary};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -17,16 +17,13 @@ impl AgentProvider for KiloProvider {
         }
     }
 
-    fn is_available_in_shell(&self, shell_path: &str) -> bool {
-        if super::check_binary_in_shell(self.info().cli_binary, shell_path) {
-            return true;
-        }
-        // kilo installs to ~/.kilo/bin by default which may not be on PATH
-        let home = std::env::var("HOME").unwrap_or_default();
-        std::path::Path::new(&format!("{}/.kilo/bin/kilo", home)).exists()
-    }
-
-    fn build_command(&self, prompt: &str, _worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>) {
+    fn build_command(
+        &self,
+        prompt: &str,
+        _worktree_path: &str,
+        options: &HashMap<String, String>,
+        shell_path: &str,
+    ) -> (String, Vec<String>) {
         // `kilo run <message..>` is the non-interactive entrypoint.
         // The default `kilo [project]` treats positional args as project paths,
         // which is why `kilo "hi"` tried to `cd` into `<cwd>/hi`.
@@ -45,13 +42,10 @@ impl AgentProvider for KiloProvider {
         args.push("--".to_string());
         args.push(prompt.to_string());
 
-        // Fall back to the default install path if not on PATH
-        let binary = if which::which("kilo").is_ok() {
-            "kilo".to_string()
-        } else {
-            let home = std::env::var("HOME").unwrap_or_default();
-            format!("{}/.kilo/bin/kilo", home)
-        };
+        // Shared resolver covers PATH entries, well-known dirs (incl.
+        // `~/.kilo/bin`), and shell-resolution as a last resort.
+        let binary = resolve_provider_binary(self.info().cli_binary, shell_path)
+            .unwrap_or_else(|| self.info().cli_binary.to_string());
 
         (binary, args)
     }

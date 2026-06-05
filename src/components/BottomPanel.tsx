@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Terminal } from './Terminal'
+import { ChatWindow } from './ChatWindow'
 import { TerminalShell } from './TerminalShell'
 import { forge } from '../lib/tauri'
 import { colors } from '../theme'
@@ -90,7 +90,7 @@ export function BottomPanel({ workspaceId }: Props) {
           flexDirection: 'column',
         }}
       >
-        {tab === 'agent' && <Terminal workspaceId={workspaceId} />}
+        {tab === 'agent' && <ChatWindow workspaceId={workspaceId} />}
         {tab === 'shell' && (
           <TerminalShell key={workspaceId} workspaceId={workspaceId} />
         )}

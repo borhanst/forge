@@ -77,6 +77,7 @@ async fn main() {
             commands::get_latest_session,
             commands::list_running_agents,
             commands::get_resolved_path,
+            commands::refresh_shell_env,
             commands::debug_path,
             commands::install_provider,
 

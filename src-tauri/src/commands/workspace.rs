@@ -465,7 +465,7 @@ pub async fn run_agent(
         provider_options,
         request.prompt,
         agent_work_dir,
-        state.shell_env.clone(),
+        state.shell_env_snapshot(),
         state.running_agents.clone(),
     )
     .await;
@@ -506,7 +506,17 @@ pub async fn stop_agent(
 /// Returns the resolved shell PATH
 #[tauri::command]
 pub fn get_resolved_path(state: State<'_, AppState>) -> String {
-    state.shell_path().clone()
+    state.shell_path()
+}
+
+/// Re-resolve the user's shell environment and replace the cached one.
+/// Called by the frontend after `install_provider` succeeds so newly installed
+/// binaries (often placed in directories the cached PATH didn't include)
+/// become discoverable without restarting the app.
+#[tauri::command]
+pub fn refresh_shell_env(state: State<'_, AppState>) -> String {
+    state.refresh_shell_env();
+    state.shell_path()
 }
 
 /// Debug command: shows shell_path, system PATH, and which output for all agents
@@ -630,7 +640,7 @@ pub async fn install_provider(
         ));
     }
 
-    let needs_sudo = needs_sudo_for_npm(&state.shell_env);
+    let needs_sudo = needs_sudo_for_npm(&state.shell_env_snapshot());
 
     // Use a synthetic workspace/session so install output streams into the terminal pane
     let workspace_id = format!("__install_{}", provider_id);
@@ -662,8 +672,9 @@ pub async fn install_provider(
         ).await;
 
         // Resolve the binary and spawn directly (cancel_rx not needed for install)
-        let path_env = state.shell_env.get("PATH").cloned().unwrap_or_default();
+        let path_env = state.shell_path();
         let resolved = providers::resolve_binary_path(&full_argv[0], &path_env)
+            .or_else(|| providers::resolve_provider_binary(&full_argv[0], &path_env))
             .ok_or_else(|| format!(
                 "Could not find `{}` on PATH. Is npm installed?",
                 full_argv[0]
@@ -672,7 +683,7 @@ pub async fn install_provider(
         let mut cmd = tokio::process::Command::new(&resolved);
         cmd.args(&full_argv[1..])
            .current_dir(".")
-           .envs(&state.shell_env)
+           .envs(state.shell_env_snapshot())
            .stdout(std::process::Stdio::piped())
            .stderr(std::process::Stdio::piped())
            .kill_on_drop(true);
@@ -742,6 +753,10 @@ pub async fn install_provider(
                         &app, &state.db, &workspace_id, &session_id, "system",
                         &format!("[Install] {} installed successfully.", provider.info().display_name),
                     ).await;
+                    // Re-resolve the shell env so the new binary's directory is
+                    // discoverable on subsequent runs even if npm installed to
+                    // a path that wasn't on the cached PATH.
+                    state.refresh_shell_env();
                     let _ = app.emit("providers:refresh", ());
                     return Ok(());
                 }

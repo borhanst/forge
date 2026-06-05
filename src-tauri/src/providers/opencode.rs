@@ -1,4 +1,4 @@
-use super::{AgentProvider, ProviderInfo};
+use super::{AgentProvider, ProviderInfo, resolve_provider_binary};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -17,7 +17,13 @@ impl AgentProvider for OpenCodeProvider {
         }
     }
 
-    fn build_command(&self, prompt: &str, _worktree_path: &str, options: &HashMap<String, String>) -> (String, Vec<String>) {
+    fn build_command(
+        &self,
+        prompt: &str,
+        _worktree_path: &str,
+        options: &HashMap<String, String>,
+        shell_path: &str,
+    ) -> (String, Vec<String>) {
         let mut args = vec!["run".to_string(), prompt.to_string()];
 
         if let Some(model) = options.get("model") {
@@ -30,7 +36,9 @@ impl AgentProvider for OpenCodeProvider {
             args.push(agent.to_string());
         }
 
-        ("opencode".to_string(), args)
+        let binary = resolve_provider_binary(self.info().cli_binary, shell_path)
+            .unwrap_or_else(|| self.info().cli_binary.to_string());
+        (binary, args)
     }
 
     fn install_options(&self) -> Vec<Vec<String>> {

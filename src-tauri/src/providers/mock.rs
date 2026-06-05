@@ -17,7 +17,13 @@ impl AgentProvider for MockProvider {
         }
     }
 
-    fn build_command(&self, prompt: &str, _worktree_path: &str, _options: &HashMap<String, String>) -> (String, Vec<String>) {
+    fn build_command(
+        &self,
+        prompt: &str,
+        _worktree_path: &str,
+        _options: &HashMap<String, String>,
+        _shell_path: &str,
+    ) -> (String, Vec<String>) {
         (
             "echo".to_string(),
             vec![format!("Mock response to: {}", prompt)],

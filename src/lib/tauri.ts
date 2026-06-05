@@ -276,6 +276,9 @@ export const forge = {
   getResolvedPath: () =>
     invoke<string>('get_resolved_path'),
 
+  refreshShellEnv: () =>
+    invoke<string>('refresh_shell_env'),
+
   saveGithubToken: (token: string) =>
     invoke<void>('save_github_token', { token }),
 

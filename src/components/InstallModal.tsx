@@ -34,6 +34,15 @@ export default function InstallModal({
     setLoading(true)
     try {
       await forge.installProvider(provider.id)
+      // Re-resolve the shell env so the newly installed binary is
+      // discoverable immediately. The backend also does this, but calling
+      // it here lets `onSuccess` (which refetches the provider list) see
+      // the fresh state.
+      try {
+        await forge.refreshShellEnv()
+      } catch {
+        // Non-fatal: backend may have already refreshed.
+      }
       setDone(true)
       onSuccess()
     } catch (e: any) {

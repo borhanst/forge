@@ -32,7 +32,7 @@ pub async fn terminal_open(
         state.terminals.clone(),
         workspace_id,
         worktree_path,
-        state.shell_env.clone(),
+        state.shell_env_snapshot(),
     )
     .await
     .map_err(|e| e.to_string())

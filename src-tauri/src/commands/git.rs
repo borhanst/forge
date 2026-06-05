@@ -376,6 +376,7 @@ pub async fn resolve_and_finish_merge(
 
     let provider_id = detail.workspace.provider.clone();
     let provider_config = detail.workspace.provider_config.clone();
+    let shell_path = state.shell_path();
 
     let result = tokio::task::spawn_blocking(move || -> Result<MergeResult, String> {
         // Step 1: Ensure forge branch exists in main repo
@@ -436,8 +437,8 @@ pub async fn resolve_and_finish_merge(
              Do NOT commit — I will handle that.",
             conflicted.join(", ")
         );
-        let (binary, args) = provider.build_command(&prompt, &tmp_path, &options);
-        let resolved_path = crate::providers::resolve_binary_path(&binary, &std::env::var("PATH").unwrap_or_default())
+        let (binary, args) = provider.build_command(&prompt, &tmp_path, &options, &shell_path);
+        let resolved_path = crate::providers::resolve_provider_binary(&binary, &shell_path)
             .ok_or_else(|| format!("{} CLI not found on PATH", binary))?;
         let agent_output = std::process::Command::new(&resolved_path)
             .args(&args)
